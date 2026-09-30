@@ -1,0 +1,4 @@
+{
+  "name": "Quản lý mượn – trả sách",
+  "description": "Hệ thống quản lý mượn và trả sách cho thư viện lớp học, tự động kiểm tra hạn trả và gửi thông báo SMS/Email."
+}

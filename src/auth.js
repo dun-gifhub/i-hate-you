@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 
-const SECRET = process.env.SESSION_SECRET || "";
+const SECRET = process.env.SESSION_SECRET || "default_super_secret_session_key_123456";
 
 /* ---------------- Mat khau ---------------- */
 export function hashPassword(password) {

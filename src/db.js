@@ -85,9 +85,11 @@ CREATE INDEX IF NOT EXISTS idx_borrow_status ON borrow_records(status, due_date)
 CREATE INDEX IF NOT EXISTS idx_notif_status  ON notifications(status);
 `);
 
-// Nang cap co so du lieu cu (neu co) len co cot tai khoan cho nguoi muon.
+// Nang cap co so du lieu cu (neu co) len co cot tai khoan cho nguoi muon, lop va giao vien chu nhiem.
 try { await run("ALTER TABLE users ADD COLUMN password_hash TEXT"); } catch (e) { /* da co cot */ }
 try { await run("ALTER TABLE users ADD COLUMN password_salt TEXT"); } catch (e) { /* da co cot */ }
+try { await run("ALTER TABLE users ADD COLUMN class_name TEXT"); } catch (e) { /* da co cot */ }
+try { await run("ALTER TABLE users ADD COLUMN homeroom_teacher TEXT"); } catch (e) { /* da co cot */ }
 
 /* ---------- Tai khoan nguoi muon (hoc sinh tu dang ky) ---------- */
 export async function findAccountByIdentifier(identifier) {
@@ -102,7 +104,7 @@ export async function findUserByContact(phone, email) {
   return one("SELECT * FROM users WHERE phone = ? AND email = ?", [phone, email]);
 }
 
-export async function createAccount({ name, phone, email, hash, salt }) {
+export async function createAccount({ name, phone, email, class_name, homeroom_teacher, hash, salt }) {
   const existing = await findUserByContact(phone, email);
   if (existing) {
     if (existing.password_hash) {
@@ -110,30 +112,37 @@ export async function createAccount({ name, phone, email, hash, salt }) {
       err.code = "ACCOUNT_EXISTS";
       throw err;
     }
-    await run("UPDATE users SET name=?, password_hash=?, password_salt=? WHERE id=?",
-      [name, hash, salt, existing.id]);
+    await run(
+      "UPDATE users SET name=?, class_name=COALESCE(NULLIF(?,''), class_name), homeroom_teacher=COALESCE(NULLIF(?,''), homeroom_teacher), password_hash=?, password_salt=? WHERE id=?",
+      [name, class_name || "", homeroom_teacher || "", hash, salt, existing.id]
+    );
     return Number(existing.id);
   }
   const res = await run(
-    "INSERT INTO users (name, phone, email, created_at, password_hash, password_salt) VALUES (?,?,?,?,?,?)",
-    [name, phone, email, new Date().toISOString(), hash, salt]
+    "INSERT INTO users (name, phone, email, class_name, homeroom_teacher, created_at, password_hash, password_salt) VALUES (?,?,?,?,?,?,?,?)",
+    [name, phone, email, class_name || "", homeroom_teacher || "", new Date().toISOString(), hash, salt]
   );
   return Number(res.lastInsertRowid);
 }
 
 export async function getUserById(id) {
-  return one("SELECT id, name, phone, email, created_at FROM users WHERE id = ?", [id]);
+  return one("SELECT id, name, phone, email, class_name, homeroom_teacher, created_at FROM users WHERE id = ?", [id]);
 }
 
 /* ---------- Nguoi muon (admin ghi ho) ---------- */
-export async function upsertUser({ name, phone, email }) {
+export async function upsertUser({ name, phone, email, class_name, homeroom_teacher }) {
   const found = await one("SELECT id FROM users WHERE phone = ? AND email = ?", [phone, email]);
   if (found) {
-    await run("UPDATE users SET name = ? WHERE id = ?", [name, found.id]);
+    await run(
+      "UPDATE users SET name = ?, class_name = COALESCE(NULLIF(?,''), class_name), homeroom_teacher = COALESCE(NULLIF(?,''), homeroom_teacher) WHERE id = ?",
+      [name, class_name || "", homeroom_teacher || "", found.id]
+    );
     return Number(found.id);
   }
-  const res = await run("INSERT INTO users (name, phone, email, created_at) VALUES (?,?,?,?)",
-    [name, phone, email, new Date().toISOString()]);
+  const res = await run(
+    "INSERT INTO users (name, phone, email, class_name, homeroom_teacher, created_at) VALUES (?,?,?,?,?,?)",
+    [name, phone, email, class_name || "", homeroom_teacher || "", new Date().toISOString()]
+  );
   return Number(res.lastInsertRowid);
 }
 
@@ -155,6 +164,21 @@ export async function upsertBook({ book_code, book_name, author, category }) {
   return Number(res.lastInsertRowid);
 }
 
+export async function deleteBook(id) {
+  const b = await one("SELECT * FROM books WHERE id = ?", [id]);
+  if (!b) return null;
+  const active = await one("SELECT id FROM borrow_records WHERE book_id = ? AND status = 'borrowing' LIMIT 1", [id]);
+  if (active || b.status === "borrowed") {
+    const err = new Error(`Cuốn sách mã ${b.book_code} đang có người mượn, không thể xóa.`);
+    err.code = "BOOK_BUSY";
+    throw err;
+  }
+  await run("DELETE FROM notifications WHERE borrow_record_id IN (SELECT id FROM borrow_records WHERE book_id = ?)", [id]);
+  await run("DELETE FROM borrow_records WHERE book_id = ?", [id]);
+  await run("DELETE FROM books WHERE id = ?", [id]);
+  return b;
+}
+
 export async function setBookStatus(bookId, status) {
   await run("UPDATE books SET status = ? WHERE id = ?", [status, bookId]);
 }
@@ -170,7 +194,7 @@ export async function isBookBorrowed(code) {
 /* ---------- Luot muon ---------- */
 export async function listBorrows() {
   return all(`
-    SELECT r.*, u.name, u.phone, u.email, b.book_code, b.book_name
+    SELECT r.*, u.name, u.phone, u.email, u.class_name, u.homeroom_teacher, b.book_code, b.book_name
     FROM borrow_records r
     JOIN users u ON u.id = r.user_id
     JOIN books b ON b.id = r.book_id
@@ -179,7 +203,7 @@ export async function listBorrows() {
 
 export async function getBorrow(id) {
   return one(`
-    SELECT r.*, u.name, u.phone, u.email, b.book_code, b.book_name
+    SELECT r.*, u.name, u.phone, u.email, u.class_name, u.homeroom_teacher, b.book_code, b.book_name
     FROM borrow_records r
     JOIN users u ON u.id = r.user_id
     JOIN books b ON b.id = r.book_id
@@ -188,7 +212,7 @@ export async function getBorrow(id) {
 
 export async function activeBorrows() {
   return all(`
-    SELECT r.*, u.name, u.phone, u.email, b.book_code, b.book_name
+    SELECT r.*, u.name, u.phone, u.email, u.class_name, u.homeroom_teacher, b.book_code, b.book_name
     FROM borrow_records r
     JOIN users u ON u.id = r.user_id
     JOIN books b ON b.id = r.book_id
@@ -196,13 +220,13 @@ export async function activeBorrows() {
 }
 
 export async function createBorrow(input) {
-  const { name, phone, email, book_code, book_name, borrow_date, due_date } = input;
+  const { name, phone, email, class_name, homeroom_teacher, book_code, book_name, borrow_date, due_date } = input;
   if (await isBookBorrowed(book_code)) {
     const err = new Error(`Mã sách ${book_code} đang được người khác mượn.`);
     err.code = "BOOK_BUSY";
     throw err;
   }
-  const userId = await upsertUser({ name, phone, email });
+  const userId = await upsertUser({ name, phone, email, class_name, homeroom_teacher });
   const bookId = await upsertBook({ book_code, book_name, author: "", category: "" });
   const res = await run(`INSERT INTO borrow_records
     (user_id, book_id, borrow_date, due_date, status, created_at)
@@ -230,7 +254,7 @@ export async function createBorrowForAccount(userId, { book_code, book_name, bor
 
 export async function myBorrows(userId) {
   return all(`
-    SELECT r.*, u.name, u.phone, u.email, b.book_code, b.book_name
+    SELECT r.*, u.name, u.phone, u.email, u.class_name, u.homeroom_teacher, b.book_code, b.book_name
     FROM borrow_records r
     JOIN users u ON u.id = r.user_id
     JOIN books b ON b.id = r.book_id

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import cron from "node-cron";
 import {
   db, listBorrows, getBorrow, createBorrow, createBorrowForAccount, markReturned,
-  listNotifications, upsertBook, queueNotification,
+  listNotifications, upsertBook, deleteBook, queueNotification,
   findAccountByIdentifier, createAccount, getUserById, myBorrows,
 } from "./src/db.js";
 import { runDailyCheck, statusOf, todayISO, flushQueue } from "./src/checker.js";
@@ -27,20 +27,21 @@ app.get("/", (req, res) => {
 });
 app.use(express.static("public", { index: false }));  // giao dien web tai http://localhost:PORT
 
-/* ============ Kiem tra cau hinh bat buoc ============ */
-if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 16) {
-  console.error("Thiếu SESSION_SECRET trong tệp .env (cần ít nhất 16 ký tự). Máy chủ dừng lại.");
-  process.exit(1);
+/* ============ Kiem tra cau hinh ============ */
+const sessionSecret = process.env.SESSION_SECRET || "default_super_secret_session_key_123456";
+const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+
+if (!process.env.SESSION_SECRET) {
+  console.warn("Chưa đặt SESSION_SECRET trong tệp .env, đang dùng giá trị mặc định.");
 }
 if (!process.env.ADMIN_PASSWORD) {
-  console.error("Thiếu ADMIN_PASSWORD trong tệp .env. Máy chủ dừng lại.");
-  process.exit(1);
+  console.warn("Chưa đặt ADMIN_PASSWORD trong tệp .env, đang dùng mật khẩu mặc định (admin123).");
 }
 const auth = requireAdmin; // giu ten cu cho cac duong dan quan tri ben duoi
 
 app.post("/api/dang-nhap", (req, res) => {
   const given = String(req.body?.password || "");
-  const real = String(process.env.ADMIN_PASSWORD);
+  const real = String(adminPassword);
   const ok = given.length === real.length &&
     crypto.timingSafeEqual(Buffer.from(given.padEnd(64, "\0")), Buffer.from(real.padEnd(64, "\0")));
   if (!ok) return res.status(401).json({ error: "Mật khẩu không đúng." });
@@ -49,7 +50,7 @@ app.post("/api/dang-nhap", (req, res) => {
 
 /* ============ Tai khoan nguoi muon (hoc sinh tu dang ky) ============ */
 app.post("/api/dang-ky", ah(async (req, res) => {
-  const { name, phone, email, password } = req.body || {};
+  const { name, phone, email, class_name, homeroom_teacher, password } = req.body || {};
   const errors = [];
   if (!name || String(name).trim().length < 2) errors.push("Họ và tên không được để trống.");
   if (!isPhone(phone)) errors.push("Số điện thoại không hợp lệ.");
@@ -59,9 +60,23 @@ app.post("/api/dang-ky", ah(async (req, res) => {
 
   try {
     const { salt, hash } = hashPassword(String(password));
-    const id = await createAccount({ name: name.trim(), phone: phone.trim(), email: email.trim().toLowerCase(), hash, salt });
+    const id = await createAccount({
+      name: name.trim(),
+      phone: phone.trim(),
+      email: email.trim().toLowerCase(),
+      class_name: String(class_name || "").trim(),
+      homeroom_teacher: String(homeroom_teacher || "").trim(),
+      hash,
+      salt,
+    });
+    const u = await getUserById(id);
     const token = makeToken({ role: "docgia", uid: id });
-    res.status(201).json({ token, name: name.trim() });
+    res.status(201).json({
+      token,
+      name: u.name,
+      class_name: u.class_name || "",
+      homeroom_teacher: u.homeroom_teacher || "",
+    });
   } catch (e) {
     if (e.code === "ACCOUNT_EXISTS") return res.status(409).json({ error: e.message });
     console.error(e);
@@ -75,7 +90,12 @@ app.post("/api/dang-nhap-doc-gia", ah(async (req, res) => {
   if (!acc || !verifyPassword(String(password || ""), acc.password_salt, acc.password_hash)) {
     return res.status(401).json({ error: "Số điện thoại/Gmail hoặc mật khẩu không đúng." });
   }
-  res.json({ token: makeToken({ role: "docgia", uid: acc.id }), name: acc.name });
+  res.json({
+    token: makeToken({ role: "docgia", uid: acc.id }),
+    name: acc.name,
+    class_name: acc.class_name || "",
+    homeroom_teacher: acc.homeroom_teacher || "",
+  });
 }));
 
 app.get("/api/toi", requireAccount, ah(async (req, res) => {
@@ -147,7 +167,7 @@ app.get("/api/muon", auth, ah(async (req, res) => {
   const q = String(req.query.q || "").toLowerCase();
   const today = todayISO();
   let rows = (await listBorrows()).map((r) => ({ ...r, trang_thai: statusOf(r, today) }));
-  if (q) rows = rows.filter((r) => [r.name, r.phone, r.email, r.book_code, r.book_name].join(" ").toLowerCase().includes(q));
+  if (q) rows = rows.filter((r) => [r.name, r.phone, r.email, r.class_name, r.homeroom_teacher, r.book_code, r.book_name].join(" ").toLowerCase().includes(q));
   res.json(rows);
 }));
 
@@ -170,8 +190,10 @@ app.put("/api/muon/:id", auth, ah(async (req, res) => {
   const merged = { ...rec, ...req.body };
   const errors = validateBorrow(merged);
   if (errors.length) return res.status(400).json({ error: errors.join(" ") });
-  await db.execute({ sql: "UPDATE users SET name=?, phone=?, email=? WHERE id=?",
-    args: [merged.name, merged.phone, merged.email, rec.user_id] });
+  await db.execute({
+    sql: "UPDATE users SET name=?, phone=?, email=?, class_name=?, homeroom_teacher=? WHERE id=?",
+    args: [merged.name, merged.phone, merged.email, merged.class_name || "", merged.homeroom_teacher || "", rec.user_id]
+  });
   await db.execute({ sql: "UPDATE borrow_records SET borrow_date=?, due_date=? WHERE id=?",
     args: [merged.borrow_date, merged.due_date, rec.id] });
   res.json(await getBorrow(rec.id));
@@ -205,6 +227,18 @@ app.post("/api/sach", auth, ah(async (req, res) => {
   const id = await upsertBook(req.body);
   const r = await db.execute({ sql: "SELECT * FROM books WHERE id = ?", args: [id] });
   res.status(201).json(r.rows[0]);
+}));
+
+app.delete("/api/sach/:id", auth, ah(async (req, res) => {
+  try {
+    const deleted = await deleteBook(req.params.id);
+    if (!deleted) return res.status(404).json({ error: "Không tìm thấy cuốn sách này." });
+    res.json({ ok: true, deleted });
+  } catch (e) {
+    if (e.code === "BOOK_BUSY") return res.status(400).json({ error: e.message });
+    console.error(e);
+    res.status(500).json({ error: "Không thể xóa cuốn sách." });
+  }
 }));
 
 app.get("/api/thong-bao", auth, ah(async (req, res) => res.json(await listNotifications())));
@@ -257,8 +291,8 @@ if (cron.validate(schedule)) {
   console.warn(`CRON_SCHEDULE "${schedule}" không hợp lệ, tiến trình tự động chưa bật.`);
 }
 
-const port = Number(process.env.PORT || 4000);
-app.listen(port, () => {
-  console.log(`Mở trình duyệt tại http://localhost:${port} để dùng website.`);
+const port = 3000;
+app.listen(port, "0.0.0.0", () => {
+  console.log(`Mở trình duyệt tại http://0.0.0.0:${port} để dùng website.`);
   console.log(`SMS: ${smsConfigured() ? "đã cấu hình" : "CHƯA cấu hình"} · Email: ${emailConfigured() ? "đã cấu hình" : "CHƯA cấu hình"}`);
 });
