@@ -1,4 +1,6 @@
 {
   "name": "Quản lý mượn – trả sách",
-  "description": "Hệ thống quản lý mượn và trả sách cho thư viện lớp học, tự động kiểm tra hạn trả và gửi thông báo SMS/Email."
+  "description": "Hệ thống quản lý mượn – trả sách, kho sách và thông báo hạn trả thư viện lớp.",
+  "requestFramePermissions": [],
+  "capabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

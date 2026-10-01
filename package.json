@@ -5,17 +5,17 @@
   "type": "module",
   "engines": { "node": ">=22.0.0" },
   "scripts": {
-    "dev": "PORT=3000 node server.js",
-    "start": "PORT=3000 node server.js",
-    "build": "node --check server.js src/db.js src/auth.js src/checker.js src/notify.js",
-    "lint": "node --check server.js src/db.js src/auth.js src/checker.js src/notify.js scripts/check-now.js scripts/import-queue.js scripts/test-send.js",
+    "dev": "node server.js",
+    "start": "node server.js",
+    "build": "echo 'Build complete'",
+    "lint": "node --check server.js src/*.js scripts/*.js",
     "test-send": "node scripts/test-send.js",
     "test-gui": "node scripts/test-send.js",
     "import": "node scripts/import-queue.js",
     "check-now": "node scripts/check-now.js"
   },
   "dependencies": {
-    "@libsql/client": "^0.15.0",
+    "pg": "^8.13.1",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "node-cron": "^3.0.3",

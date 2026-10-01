@@ -41,25 +41,25 @@ Website này gồm một **máy chủ Node.js thật sự** (lưu dữ liệu SQ
 
 Việc đăng ký/đăng nhập tài khoản (mục `/api/dang-ky`, `/api/dang-nhap-doc-gia`) đã có sẵn trong mã nguồn và lưu vào cơ sở dữ liệu trên máy chủ — nghĩa là **hễ máy chủ chạy ở một địa chỉ công khai thì bất kỳ ai, từ bất kỳ thiết bị nào, cũng đăng ký/đăng nhập lại được**, không cần đúng máy tính này. Vấn đề hiện tại chỉ là máy chủ đang chạy ở `localhost` — chỉ máy đang bật `npm start` mới thấy được.
 
-### Bước 0: Tạo cơ sở dữ liệu miễn phí trên Turso (để dữ liệu không bị mất)
+### Bước 0: Tạo cơ sở dữ liệu miễn phí trên Neon (để dữ liệu không bị mất)
 
-Gói miễn phí của Render **không hỗ trợ ổ đĩa lưu trữ lâu dài** — nếu chỉ dùng gói free mà không làm bước này, dữ liệu (tài khoản, lượt mượn) có thể bị xóa sạch mỗi khi Render khởi động lại dịch vụ. Vì vậy dự án này lưu dữ liệu trên **Turso** (SQLite chạy qua mạng, có gói miễn phí, dùng cùng cú pháp SQL) thay vì lưu file ngay trên Render.
+Gói miễn phí của Render **không hỗ trợ ổ đĩa lưu trữ lâu dài** — nếu chỉ dùng gói free mà không làm bước này, dữ liệu (tài khoản, lượt mượn) có thể bị xóa sạch mỗi khi Render khởi động lại dịch vụ. Vì vậy dự án này lưu dữ liệu trên **Neon** (cơ sở dữ liệu Postgres, có gói miễn phí, lấy được chuỗi kết nối ngay trên trang web — không cần cài đặt gì trên máy).
 
-1. Vào **turso.tech**, đăng ký tài khoản miễn phí (đăng nhập bằng GitHub cho nhanh).
-2. Tạo một database mới (đặt tên tuỳ ý, ví dụ `thu-vien-lop`).
-3. Lấy hai giá trị: **Database URL** (dạng `libsql://ten-db-xxxx.turso.io`) và một **Auth Token** (tạo token mới trong phần cài đặt database). Giữ lại hai giá trị này để dùng ở bước 3 bên dưới.
+1. Vào **neon.tech**, đăng ký tài khoản miễn phí (đăng nhập bằng GitHub cho nhanh).
+2. Tạo một project mới (đặt tên tuỳ ý, ví dụ `thu-vien-lop`). Neon tự tạo sẵn một database bên trong.
+3. Trên trang tổng quan của project, tìm ô **Connection string** (hoặc "Connection Details"), bấm sao chép. Chuỗi này có dạng `postgresql://ten-dang-nhap:mat-khau@ep-xxxx.aws.neon.tech/neondb?sslmode=require`. Giữ lại để dùng ở bước 3 bên dưới.
 
 ### Các bước với Render (miễn phí)
 
 1. Đưa toàn bộ thư mục `thu-vien-server` lên một **repository GitHub** (tạo repo mới trên github.com, rồi `git init`, `git add .`, `git commit`, `git push`).
 2. Vào **render.com**, đăng nhập bằng tài khoản GitHub, chọn **New → Blueprint**, trỏ vào repo vừa tạo. Render sẽ tự đọc file `render.yaml` đã có sẵn trong dự án và tạo đúng dịch vụ (gói free, không cần ổ đĩa).
-3. Khi được hỏi, điền bốn biến bắt buộc: `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` (lấy ở Bước 0), `ADMIN_PASSWORD` và `SESSION_SECRET` (chuỗi ngẫu nhiên dài). Đây là các giá trị được đánh dấu "cần nhập tay" trong `render.yaml`.
+3. Khi được hỏi, điền ba biến bắt buộc: `DATABASE_URL` (chuỗi kết nối lấy ở Bước 0), `ADMIN_PASSWORD` và `SESSION_SECRET` (chuỗi ngẫu nhiên dài). Đây là các giá trị được đánh dấu "cần nhập tay" trong `render.yaml`.
 4. Bấm **Apply/Deploy**. Sau vài phút, Render cấp một địa chỉ dạng `https://thu-vien-lop.onrender.com` — đây là địa chỉ dùng ở mọi nơi, mọi thiết bị, thay cho `localhost:4000`.
-5. Từ nay, mỗi lần `git push` lên GitHub, Render tự động triển khai lại bản mới (không cần thao tác thủ công). Vì dữ liệu nằm trên Turso chứ không nằm trên Render, việc triển khai lại **không** làm mất dữ liệu.
+5. Từ nay, mỗi lần `git push` lên GitHub, Render tự động triển khai lại bản mới (không cần thao tác thủ công). Vì dữ liệu nằm trên Neon chứ không nằm trên Render, việc triển khai lại **không** làm mất dữ liệu.
 
-Lưu ý: gói miễn phí của Render sẽ "ngủ" sau một thời gian không có ai truy cập và mất khoảng 30–60 giây để "thức dậy" ở lượt truy cập đầu tiên — vẫn hoạt động bình thường, chỉ chậm ở lần đầu. Đây chỉ là server tạm nghỉ, không liên quan đến dữ liệu — dữ liệu trên Turso luôn còn nguyên.
+Lưu ý: gói miễn phí của Render sẽ "ngủ" sau một thời gian không có ai truy cập và mất khoảng 30–60 giây để "thức dậy" ở lượt truy cập đầu tiên — vẫn hoạt động bình thường, chỉ chậm ở lần đầu. Đây chỉ là server tạm nghỉ, không liên quan đến dữ liệu — dữ liệu trên Neon luôn còn nguyên. Gói free của Neon cũng có thể tự "ngủ" tương tự nhưng tự thức dậy ngay khi có yêu cầu, không cần bạn bấm gì.
 
-Nếu muốn chạy thử trên máy cá nhân mà không cần Turso, cứ bỏ qua Bước 0 và không cần khai báo `TURSO_DATABASE_URL` — máy chủ sẽ tự lưu vào một file SQLite ngay trong thư mục `data/` như trước.
+Máy chủ **bắt buộc phải có** `DATABASE_URL` mới khởi động được (kể cả khi chạy thử trên máy cá nhân) — nếu muốn chạy thử ở nhà, cứ dùng luôn chuỗi kết nối Neon đã tạo ở Bước 0, dán vào tệp `.env` trên máy.
 
 ---
 
