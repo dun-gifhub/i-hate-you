@@ -3,515 +3,1206 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Quản lý mượn – trả sách</title>
+<title>Quản lý mượn – trả sách | Thư viện lớp</title>
 <meta name="description" content="Hệ thống quản lý mượn – trả sách, kho sách và thông báo hạn trả thư viện lớp.">
 <meta property="og:title" content="Quản lý mượn – trả sách">
 <meta property="og:description" content="Hệ thống quản lý mượn – trả sách, kho sách và thông báo hạn trả thư viện lớp.">
 <link rel="stylesheet" href="style.css">
 <style>
-  #login{position:fixed;inset:0;background:var(--ink);display:grid;place-items:center;z-index:100;padding:20px}
-  #login .box{background:var(--surface);border-radius:16px;padding:26px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
-  #login h1{font-size:19px;margin:0 0 4px}
-  #login p{margin:0 0 18px;color:var(--text-soft);font-size:14px}
-  body.locked{overflow:hidden}
+  #loginOverlay {
+    position: fixed; inset: 0;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(12px);
+    display: grid; place-items: center;
+    z-index: 1000; padding: 20px;
+  }
+  #loginOverlay .login-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-xl);
+    padding: 36px 32px;
+    width: 100%; max-width: 420px;
+    box-shadow: var(--shadow-xl);
+  }
+  body.locked { overflow: hidden; }
+  .page-panel { display: none; }
+  .page-panel.active { display: block; animation: fadeIn 0.25s ease; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 </style>
 </head>
 <body class="locked">
 
-<div id="login">
-  <form class="box" id="loginForm">
-    <h1>Đăng nhập quản trị</h1>
-    <p>Dùng mật khẩu đã đặt ở dòng <b>ADMIN_PASSWORD</b> trong tệp .env (mặc định: <b>admin123</b>).</p>
-    <label class="f"><span>Mật khẩu</span><input type="password" id="pw" autocomplete="current-password" placeholder="admin123" autofocus></label>
-    <div class="err" id="loginErr" style="margin-bottom:10px"></div>
-    <button class="btn gold" type="submit" style="width:100%;justify-content:center">Đăng nhập</button>
+<!-- Background Ambient Graphics -->
+<div class="bg-ambient">
+  <div class="bg-blob-1"></div>
+  <div class="bg-blob-2"></div>
+  <div class="bg-grid"></div>
+</div>
+
+<!-- Login Overlay -->
+<div id="loginOverlay">
+  <form class="login-card" id="loginForm">
+    <div style="text-align:center;margin-bottom:24px">
+      <div class="brand-icon" style="margin:0 auto 12px;width:52px;height:52px;font-size:1.5rem">📚</div>
+      <h2 style="margin-bottom:6px">Đăng nhập Quản trị</h2>
+      <p class="sub" style="font-size:0.88rem;margin-bottom:0">Mật khẩu mặc định: <b>admin123</b> (cấu hình trong tệp .env)</p>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Mật khẩu Quản trị</label>
+      <input type="password" class="form-control" id="pw" autocomplete="current-password" placeholder="admin123" autofocus required>
+    </div>
+    <div class="form-error" id="loginErr" style="margin-bottom:14px"></div>
+    <button class="btn btn-primary btn-lg" type="submit" style="width:100%">Đăng nhập ngay</button>
+    <a href="hoc-sinh.html" style="display:block;text-align:center;margin-top:20px;color:var(--text-soft);font-size:0.88rem;text-decoration:none">
+      ← Sang trang Học sinh mượn sách
+    </a>
   </form>
 </div>
 
-<div class="app">
-  <aside class="side">
-    <div class="brand">
-      <div class="brand-mark">TV</div>
-      <div><b>Thư viện lớp</b><span>Quản lý mượn – trả sách</span></div>
+<!-- Main Admin Layout -->
+<div class="admin-layout">
+  <!-- Sidebar -->
+  <aside class="admin-sidebar">
+    <div class="brand-link" style="margin-bottom:16px">
+      <div class="brand-icon">TV</div>
+      <div class="brand-text">
+        <b>Thư viện lớp</b>
+        <span>Bảng điều khiển Quản trị</span>
+      </div>
     </div>
-    <nav class="nav" id="nav"></nav>
-    <div class="side-foot">
-      <div id="whoami">Quản trị viên</div>
-      <button type="button" id="themeBtn">Đổi nền sáng / tối</button>
-      <button type="button" id="logout" style="margin-top:6px">Đăng xuất</button>
-      <a href="hoc-sinh.html" style="display:block;text-align:center;margin-top:10px;font-size:12px;color:#9dbcc7">Trang học sinh mượn sách →</a>
+
+    <nav class="admin-nav" id="adminNav">
+      <button type="button" class="active" data-page="home">
+        <span>📊</span> <span>Tổng quan</span>
+      </button>
+      <button type="button" data-page="list">
+        <span>📋</span> <span>Danh sách mượn</span>
+        <span class="nav-badge" id="lateBadge" style="display:none">0</span>
+      </button>
+      <button type="button" data-page="books">
+        <span>📚</span> <span>Quản lý kho sách</span>
+      </button>
+      <button type="button" data-page="borrow">
+        <span>➕</span> <span>Tạo phiếu mượn</span>
+      </button>
+      <button type="button" data-page="notif">
+        <span>🔔</span> <span>Lịch sử thông báo</span>
+      </button>
+      <button type="button" data-page="stats">
+        <span>📈</span> <span>Báo cáo thống kê</span>
+      </button>
+      <button type="button" data-page="settings">
+        <span>⚙️</span> <span>Cài đặt hệ thống</span>
+      </button>
+    </nav>
+
+    <div class="admin-foot">
+      <div style="font-size:0.85rem;font-weight:600;color:var(--text-soft)">Quản trị viên / Giáo viên</div>
+      <button class="btn btn-secondary btn-sm" id="themeBtn" type="button" style="justify-content:center">
+        ☀️ Đổi giao diện Sáng / Tối
+      </button>
+      <button class="btn btn-secondary btn-sm btn-danger" id="logoutBtn" type="button" style="justify-content:center">
+        Đăng xuất
+      </button>
+      <a href="hoc-sinh.html" style="display:block;text-align:center;font-size:0.85rem;color:var(--primary);text-decoration:none;font-weight:600;margin-top:6px">
+        Xem trang Học sinh →
+      </a>
     </div>
   </aside>
 
-  <main class="main">
-    <div class="topbar">
-      <div class="brand-mark">TV</div><b>Thư viện lớp</b>
-      <button class="theme" id="themeBtn2" type="button">Sáng/Tối</button>
-    </div>
+  <!-- Main Content Area -->
+  <main class="admin-main">
 
-    <section class="page" id="p-home">
-      <h1>Trang chủ</h1>
-      <p class="sub">Tình hình mượn sách tính đến <b id="todayLabel"></b>.</p>
-      <div class="grid stats" id="statGrid"></div>
-      <h2>🔔 Sắp đến hạn</h2><div class="card" id="homeSoon"></div>
-      <h2>⚠️ Quá hạn</h2><div class="card" id="homeLate"></div>
+    <!-- 1. HOME / DASHBOARD PAGE -->
+    <section class="page-panel active" id="page-home">
+      <div class="section-header">
+        <div>
+          <h1>Tổng quan thư viện</h1>
+          <p class="sub">Tình hình mượn & trả sách tính đến ngày hôm nay: <b id="todayLabel" class="mono"></b>.</p>
+        </div>
+        <button class="btn btn-primary" id="btnQuickCheck" type="button">🔄 Kiểm tra hạn trả & Gửi thông báo</button>
+      </div>
+
+      <div class="stats-grid" id="statGrid"></div>
+
+      <div class="form-row-two" style="margin-top:28px">
+        <div class="card-panel">
+          <h3 style="color:var(--accent-amber-text)">🔔 Sắp đến hạn trả</h3>
+          <div id="homeSoonContainer"></div>
+        </div>
+        <div class="card-panel">
+          <h3 style="color:var(--accent-rose-text)">⚠️ Đang quá hạn</h3>
+          <div id="homeLateContainer"></div>
+        </div>
+      </div>
     </section>
 
-    <section class="page" id="p-borrow">
-      <h1>Mượn sách</h1>
-      <p class="sub">Ngày trả do bạn tự quyết định, không có thời hạn mặc định.</p>
-      <div class="card"><form id="borrowForm" novalidate>
-        <h3>Thông tin người mượn</h3>
-        <label class="f"><span>Họ và tên <i class="req">*</i></span><input type="text" name="name" placeholder="Nguyễn Văn A"><div class="err">Hãy nhập họ và tên.</div></label>
-        <div class="two">
-          <label class="f"><span>Số điện thoại <i class="req">*</i></span><input type="tel" name="phone" placeholder="0912345678"><div class="err">Số điện thoại chưa hợp lệ.</div></label>
-          <label class="f"><span>Gmail <i class="req">*</i></span><input type="email" name="email" placeholder="tenban@gmail.com"><div class="err">Địa chỉ email chưa hợp lệ.</div></label>
+    <!-- 2. BORROW LIST PAGE (Includes LỚP) -->
+    <section class="page-panel" id="page-list">
+      <div class="section-header">
+        <div>
+          <h1>Danh sách mượn sách</h1>
+          <p class="sub">Tra cứu theo tên, lớp học, số điện thoại, Gmail hoặc mã sách.</p>
         </div>
-        <h3 style="margin-top:8px">Thông tin sách</h3>
-        <div class="two">
-          <label class="f"><span>Mã sách <i class="req">*</i></span><input type="text" name="book_code" list="freeBooks" placeholder="BOOK001"><datalist id="freeBooks"></datalist><div class="err" data-msg>Hãy nhập mã sách.</div></label>
-          <label class="f"><span>Tên sách <span class="muted">(nếu có)</span></span><input type="text" name="book_name"></label>
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-secondary btn-sm" id="exportCsvBtn" type="button">⬇️ Tải file CSV</button>
+          <button class="btn btn-primary btn-sm" id="btnGoToBorrow" type="button">➕ Thêm lượt mượn</button>
         </div>
-        <div class="two">
-          <label class="f"><span>Ngày mượn <i class="req">*</i></span><input type="date" name="borrow_date"><div class="err">Hãy chọn ngày mượn.</div></label>
-          <label class="f"><span>Ngày trả <i class="req">*</i></span><input type="date" name="due_date"><div class="err" data-msg>Hãy chọn ngày trả.</div></label>
-        </div>
-        <div class="row" style="margin-top:6px">
-          <button class="btn gold" type="submit">📚 Xác nhận mượn sách</button>
-          <button class="btn" type="reset">Xóa trắng biểu mẫu</button>
-        </div>
-      </form></div>
-    </section>
+      </div>
 
-    <section class="page" id="p-list">
-      <h1>Danh sách mượn sách</h1>
-      <p class="sub">Tìm theo tên, số điện thoại, Gmail hoặc mã sách.</p>
-      <div class="card">
-        <div class="row" style="margin-bottom:12px">
-          <input type="search" id="q" placeholder="🔍 Tìm tên, SĐT, Gmail, mã sách…" style="flex:1;min-width:200px">
-          <select id="fStatus" style="width:auto">
+      <div class="card-panel">
+        <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px">
+          <div style="flex:1;min-width:240px;position:relative">
+            <input type="search" class="form-control" id="searchBorrowsInput" placeholder="🔍 Tìm theo Họ tên, Lớp, SĐT, Gmail, Mã sách, Tên sách...">
+          </div>
+          <select class="form-control" id="filterBorrowStatus" style="width:auto;min-width:180px">
             <option value="">Tất cả trạng thái</option>
-            <option value="borrowing">Đang mượn</option><option value="due_soon">Sắp đến hạn</option>
-            <option value="due_today">Đến hạn hôm nay</option><option value="overdue">Quá hạn</option>
+            <option value="borrowing">Đang mượn</option>
+            <option value="due_soon">Sắp đến hạn</option>
+            <option value="due_today">Đến hạn hôm nay</option>
+            <option value="overdue">Quá hạn</option>
             <option value="returned">Đã trả</option>
           </select>
-          <button class="btn sm" id="exportBorrow" type="button">⬇️ Tải CSV</button>
         </div>
-        <div class="tw"><table>
-          <thead><tr><th>Họ tên</th><th>SĐT</th><th>Gmail</th><th>Mã sách</th><th>Ngày mượn</th><th>Ngày trả</th><th>Trạng thái</th><th></th></tr></thead>
-          <tbody id="listBody"></tbody></table></div>
-        <div id="listEmpty"></div>
+
+        <div class="table-responsive">
+          <table class="edu-table">
+            <thead>
+              <tr>
+                <th>Họ tên & Sách</th>
+                <th>Lớp</th>
+                <th>Liên hệ (SĐT / Gmail)</th>
+                <th>Mã sách</th>
+                <th>Ngày mượn</th>
+                <th>Hạn trả</th>
+                <th>Trạng thái</th>
+                <th style="text-align:right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="borrowListTbody"></tbody>
+          </table>
+        </div>
+        <div id="borrowListEmpty" class="empty-box" style="display:none">
+          <div class="empty-icon">📋</div>
+          <h4>Không tìm thấy lượt mượn nào</h4>
+          <p>Thử điều chỉnh từ khóa tìm kiếm hoặc bộ lọc trạng thái.</p>
+        </div>
       </div>
     </section>
 
-    <section class="page" id="p-books">
-      <h1>Kho sách</h1>
-      <p class="sub">Mỗi mã sách chỉ một bạn được mượn tại một thời điểm.</p>
-      <div class="card">
-        <div class="row" style="margin-bottom:12px">
-          <input type="search" id="qb" placeholder="🔍 Tìm mã sách, tên sách, tác giả…" style="flex:1;min-width:200px">
-          <button class="btn gold sm" id="addBook" type="button">➕ Thêm sách</button>
+    <!-- 3. BOOKS WAREHOUSE PAGE (Quản lý kho sách: SỬA SÁCH, MÃ SÁCH, XOÁ SÁCH) -->
+    <section class="page-panel" id="page-books">
+      <div class="section-header">
+        <div>
+          <h1>Quản lý kho sách</h1>
+          <p class="sub">Chỉnh sửa thông tin mã sách, tên sách, tác giả, thể loại và quản lý xóa sách an toàn.</p>
         </div>
-        <div class="tw"><table>
-          <thead><tr><th>Mã sách</th><th>Tên sách</th><th>Tác giả</th><th>Thể loại</th><th>Trạng thái</th></tr></thead>
-          <tbody id="bookBody"></tbody></table></div>
-        <div id="bookEmpty"></div>
+        <button class="btn btn-primary btn-sm" id="btnOpenAddBook" type="button">➕ Thêm sách mới vào kho</button>
+      </div>
+
+      <div class="card-panel">
+        <div style="display:flex;gap:12px;margin-bottom:18px">
+          <input type="search" class="form-control" id="searchBooksInput" placeholder="🔍 Tìm kiếm mã sách, tên sách, tác giả, thể loại...">
+        </div>
+
+        <div class="table-responsive">
+          <table class="edu-table">
+            <thead>
+              <tr>
+                <th>Mã sách</th>
+                <th>Tên sách</th>
+                <th>Tác giả</th>
+                <th>Thể loại</th>
+                <th>Trạng thái</th>
+                <th style="text-align:right">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="booksWarehouseTbody"></tbody>
+          </table>
+        </div>
+        <div id="booksWarehouseEmpty" class="empty-box" style="display:none">
+          <div class="empty-icon">📚</div>
+          <h4>Kho sách đang trống</h4>
+          <p>Bấm nút "Thêm sách mới vào kho" để bắt đầu theo dõi.</p>
+        </div>
       </div>
     </section>
 
-    <section class="page" id="p-notif">
-      <h1>Thông báo</h1>
-      <p class="sub">Máy chủ tự kiểm tra hạn trả mỗi ngày theo lịch trong tệp .env.</p>
-      <div id="channelState"></div>
-      <div class="card">
-        <div class="row" style="margin-bottom:12px">
-          <button class="btn primary sm" id="runCheck" type="button">🔄 Kiểm tra và gửi ngay</button>
+    <!-- 4. CREATE BORROW PAGE (Includes LỚP) -->
+    <section class="page-panel" id="page-borrow">
+      <div class="section-header">
+        <div>
+          <h1>Tạo phiếu mượn sách</h1>
+          <p class="sub">Ghi nhận thông tin học sinh mượn sách. Ngày trả do người mượn hoặc quản trị viên tùy chọn.</p>
         </div>
-        <div class="tw"><table>
-          <thead><tr><th>Người nhận</th><th>Loại</th><th>Thời gian</th><th>Nội dung</th><th>Trạng thái</th></tr></thead>
-          <tbody id="notifBody"></tbody></table></div>
-        <div id="notifEmpty"></div>
+      </div>
+
+      <div class="card-panel" style="max-width:820px">
+        <form id="adminBorrowForm" novalidate>
+          <h3 style="margin-bottom:14px;color:var(--primary)">Thông tin người mượn</h3>
+          <div class="form-row-two">
+            <div class="form-group">
+              <label class="form-label">Họ và tên <span class="req">*</span></label>
+              <input type="text" class="form-control" name="name" required placeholder="Nguyễn Văn A">
+              <div class="form-error">Vui lòng nhập họ và tên.</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Lớp <span class="req">*</span></label>
+              <input type="text" class="form-control" name="class_name" required placeholder="12A1, 11B2, 10C...">
+              <div class="form-error">Vui lòng nhập lớp học.</div>
+            </div>
+          </div>
+          <div class="form-row-two">
+            <div class="form-group">
+              <label class="form-label">Số điện thoại <span class="req">*</span></label>
+              <input type="tel" class="form-control" name="phone" required placeholder="0912345678">
+              <div class="form-error">Số điện thoại chưa hợp lệ.</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Gmail <span class="req">*</span></label>
+              <input type="email" class="form-control" name="email" required placeholder="hocsinh@gmail.com">
+              <div class="form-error">Địa chỉ Gmail chưa hợp lệ.</div>
+            </div>
+          </div>
+
+          <h3 style="margin-top:16px;margin-bottom:14px;color:var(--primary)">Thông tin sách mượn</h3>
+          <div class="form-row-two">
+            <div class="form-group">
+              <label class="form-label">Mã sách <span class="req">*</span></label>
+              <input type="text" class="form-control" name="book_code" list="freeBooksAdminList" required placeholder="TV001">
+              <datalist id="freeBooksAdminList"></datalist>
+              <div class="form-error" id="adminBookCodeErr">Hãy nhập mã sách hợp lệ.</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tên sách (nếu có)</label>
+              <input type="text" class="form-control" name="book_name" placeholder="Tên cuốn sách">
+            </div>
+          </div>
+          <div class="form-row-two">
+            <div class="form-group">
+              <label class="form-label">Ngày mượn <span class="req">*</span></label>
+              <input type="date" class="form-control" name="borrow_date" required>
+              <div class="form-error">Vui lòng chọn ngày mượn.</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Ngày trả (Tùy chọn) <span class="req">*</span></label>
+              <input type="date" class="form-control" name="due_date" required>
+              <div class="form-error" id="adminDueDateErr">Vui lòng chọn ngày trả hợp lệ.</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:12px;margin-top:20px">
+            <button class="btn btn-primary btn-lg" type="submit">📚 Xác nhận tạo phiếu mượn</button>
+            <button class="btn btn-secondary btn-lg" type="reset">Xóa trắng</button>
+          </div>
+        </form>
       </div>
     </section>
 
-    <section class="page" id="p-stats">
-      <h1>Thống kê</h1>
-      <div class="card" id="statsBox"></div>
+    <!-- 5. NOTIFICATIONS PAGE -->
+    <section class="page-panel" id="page-notif">
+      <div class="section-header">
+        <div>
+          <h1>Lịch sử thông báo</h1>
+          <p class="sub">Hệ thống tự động kiểm tra hạn trả và gửi email/sms theo cấu hình.</p>
+        </div>
+        <button class="btn btn-primary btn-sm" id="btnManualCheck" type="button">🔄 Kiểm tra và gửi ngay</button>
+      </div>
+
+      <div class="card-panel">
+        <div id="channelStateBanner" style="margin-bottom:18px"></div>
+        <div class="table-responsive">
+          <table class="edu-table">
+            <thead>
+              <tr>
+                <th>Người nhận</th>
+                <th>Kênh</th>
+                <th>Thời gian</th>
+                <th>Nội dung</th>
+                <th>Trạng thái</th>
+              </tr>
+            </thead>
+            <tbody id="notifHistoryTbody"></tbody>
+          </table>
+        </div>
+        <div id="notifEmptyState" class="empty-box" style="display:none">
+          <div class="empty-icon">🔔</div>
+          <h4>Chưa có thông báo nào</h4>
+          <p>Bấm "Kiểm tra và gửi ngay" để quét hạn trả và cập nhật hàng đợi.</p>
+        </div>
+      </div>
     </section>
 
-    <section class="page" id="p-settings">
-      <h1>Cài đặt</h1>
-      <p class="sub">Cấu hình gửi SMS và Gmail nằm trong tệp <b>.env</b> của máy chủ, không nhập ở đây để khóa API không lọt ra trình duyệt.</p>
-      <div class="card" id="settingsBox"></div>
+    <!-- 6. STATISTICS PAGE -->
+    <section class="page-panel" id="page-stats">
+      <div class="section-header">
+        <div>
+          <h1>Báo cáo thống kê</h1>
+          <p class="sub">Số liệu tổng quan về tình hình mượn trả và top sách được quan tâm nhất.</p>
+        </div>
+      </div>
+      <div class="card-panel" id="statsDetailsBox"></div>
     </section>
+
+    <!-- 7. SETTINGS PAGE -->
+    <section class="page-panel" id="page-settings">
+      <div class="section-header">
+        <div>
+          <h1>Cài đặt hệ thống</h1>
+          <p class="sub">Cấu hình kết nối cơ sở dữ liệu, SMS và Gmail.</p>
+        </div>
+      </div>
+      <div class="card-panel" id="settingsDetailsBox"></div>
+    </section>
+
   </main>
 </div>
 
-<nav class="tabs" id="tabs"></nav>
-<div id="toast"></div>
+<!-- Universal Dialog Modal -->
+<dialog class="edu-dialog" id="adminModal">
+  <div class="dialog-header">
+    <b id="adminModalTitle">Tiêu đề</b>
+    <button class="btn-close" type="button" data-close="adminModal">×</button>
+  </div>
+  <div class="dialog-body" id="adminModalBody"></div>
+  <div class="dialog-footer" id="adminModalFooter"></div>
+</dialog>
 
-<dialog id="dlg"><form method="dialog" id="dlgForm">
-  <div class="dlg-h"><b id="dlgTitle">…</b><button class="x" value="cancel" type="submit" aria-label="Đóng">×</button></div>
-  <div class="dlg-b" id="dlgBody"></div>
-  <div class="dlg-f" id="dlgFoot"></div>
-</form></dialog>
+<!-- Toast -->
+<div id="toast"></div>
 
 <script>
 (function(){
 "use strict";
-var $=function(s,r){return (r||document).querySelector(s)};
-var esc=function(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){
-  return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]})};
-function pad(n){return n<10?"0"+n:""+n}
-function todayISO(){var d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())}
-function viDate(iso){if(!iso)return "—";var p=String(iso).split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:iso}
-function dayDiff(a,b){return Math.round((new Date(b+"T00:00:00")-new Date(a+"T00:00:00"))/86400000)}
-function toast(m,bad){var t=document.createElement("div");t.className="toast"+(bad?" bad":"");t.textContent=m;
-  $("#toast").appendChild(t);setTimeout(function(){t.remove()},3600)}
 
-var TODAY=todayISO(), TOKEN="";
-try{ TOKEN=sessionStorage.getItem("tv-token")||"" }catch(e){}
-var S={borrows:[],books:[],notifs:[],server:{}};
+var $ = function(s, r){ return (r || document).querySelector(s); };
+var $$ = function(s, r){ return Array.from((r || document).querySelectorAll(s)); };
+var esc = function(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+}); };
+function pad(n){ return n < 10 ? "0" + n : "" + n; }
+function todayISO(){ var d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+function viDate(iso){ if(!iso) return "—"; var p = String(iso).split("-"); return p.length === 3 ? p[2] + "/" + p[1] + "/" + p[0] : iso; }
+function dayDiff(a, b){ return Math.round((new Date(b + "T00:00:00") - new Date(a + "T00:00:00")) / 86400000); }
 
-/* ---------- Goi API ---------- */
-async function api(path,opts){
-  opts=opts||{};
-  var res=await fetch("/api"+path,{
-    method:opts.method||"GET",
-    headers:Object.assign({"Content-Type":"application/json"},TOKEN?{Authorization:"Bearer "+TOKEN}:{}),
-    body:opts.body?JSON.stringify(opts.body):undefined
+function toast(m, bad){
+  var t = document.createElement("div");
+  t.className = "toast-msg" + (bad ? " bad" : "");
+  t.innerHTML = (bad ? "⚠️ " : "✅ ") + esc(m);
+  $("#toast").appendChild(t);
+  setTimeout(function(){ t.remove(); }, 3800);
+}
+
+var TODAY = todayISO();
+var TOKEN = ""; try { TOKEN = sessionStorage.getItem("tv-token") || ""; } catch(e){}
+var S = { borrows: [], books: [], notifs: [], server: {} };
+
+/* API Caller */
+async function api(path, opts){
+  opts = opts || {};
+  var headers = Object.assign({"Content-Type": "application/json"}, TOKEN ? {Authorization: "Bearer " + TOKEN} : {});
+  var res = await fetch("/api" + path, {
+    method: opts.method || "GET",
+    headers: headers,
+    body: opts.body ? JSON.stringify(opts.body) : undefined
   });
-  if(res.status===401){ lock("Phiên đăng nhập đã hết hạn, hãy đăng nhập lại."); throw new Error("401") }
-  var data=await res.json().catch(function(){return {}});
-  if(!res.ok) throw new Error(data.error||"Máy chủ trả về lỗi "+res.status);
+  if(res.status === 401){
+    lockOverlay("Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại.");
+    throw new Error("401");
+  }
+  var data = await res.json().catch(function(){ return {}; });
+  if(!res.ok) throw new Error(data.error || "Máy chủ trả về lỗi " + res.status);
   return data;
 }
-function lock(msg){
-  TOKEN=""; try{sessionStorage.removeItem("tv-token")}catch(e){}
-  document.body.classList.add("locked"); $("#login").style.display="grid";
-  if(msg){ $("#loginErr").textContent=msg; $("#loginErr").style.display="block" }
-}
-function unlock(){ document.body.classList.remove("locked"); $("#login").style.display="none" }
 
-$("#loginForm").addEventListener("submit",async function(e){
+function lockOverlay(msg){
+  TOKEN = ""; try { sessionStorage.removeItem("tv-token"); } catch(e){}
+  document.body.classList.add("locked");
+  $("#loginOverlay").style.display = "grid";
+  if(msg){
+    $("#loginErr").textContent = msg;
+    $("#loginErr").style.display = "block";
+  }
+}
+function unlockOverlay(){
+  document.body.classList.remove("locked");
+  $("#loginOverlay").style.display = "none";
+}
+
+$("#loginForm").addEventListener("submit", async function(e){
   e.preventDefault();
-  try{
-    var r=await fetch("/api/dang-nhap",{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({password:$("#pw").value})});
-    var d=await r.json();
-    if(!r.ok) throw new Error(d.error||"Đăng nhập thất bại.");
-    TOKEN=d.token; try{sessionStorage.setItem("tv-token",TOKEN)}catch(e){}
-    $("#pw").value=""; $("#loginErr").style.display="none"; unlock(); loadAll();
-  }catch(err){ $("#loginErr").textContent=err.message; $("#loginErr").style.display="block" }
-});
-$("#logout").addEventListener("click",function(){lock("")});
-
-/* ---------- Tai du lieu ---------- */
-async function loadAll(){
-  try{
-    S.server=await api("/trang-thai");
-    var r=await Promise.all([api("/muon"),api("/sach"),api("/thong-bao")]);
-    S.borrows=r[0]; S.books=r[1]; S.notifs=r[2];
-    renderAll();
-  }catch(e){ if(e.message!=="401") toast(e.message,true) }
-}
-
-/* ---------- Trang thai ---------- */
-var LABEL={borrowing:{l:"Đang mượn",c:"t-active",i:"🟢"},due_soon:{l:"Sắp đến hạn",c:"t-soon",i:"🟡"},
-  due_today:{l:"Đến hạn trả hôm nay",c:"t-today",i:"🔴"},overdue:{l:"Quá hạn",c:"t-late",i:"⚠️"},
-  returned:{l:"Đã trả",c:"t-done",i:"🔵"}};
-function st(r){
-  var k=r.trang_thai||(r.status==="returned"?"returned":"borrowing");
-  var o=LABEL[k]||LABEL.borrowing, lab=o.l;
-  if(k==="overdue") lab="Quá hạn "+Math.abs(dayDiff(TODAY,r.due_date))+" ngày";
-  if(k==="due_soon") lab="Sắp đến hạn ("+dayDiff(TODAY,r.due_date)+" ngày)";
-  return {k:k,label:lab,cls:o.c,icon:o.i};
-}
-function bookBusy(code){
-  return S.borrows.some(function(r){return r.status!=="returned" &&
-    String(r.book_code).toUpperCase()===String(code).trim().toUpperCase()});
-}
-
-/* ---------- Dieu huong ---------- */
-var PAGES=[{id:"home",i:"🏠",l:"Trang chủ",s:"Trang chủ"},{id:"borrow",i:"📚",l:"Mượn sách",s:"Mượn"},
- {id:"list",i:"📋",l:"Danh sách mượn",s:"Danh sách"},{id:"books",i:"📖",l:"Kho sách",s:"Kho sách"},
- {id:"notif",i:"🔔",l:"Thông báo",s:"Thông báo"},{id:"stats",i:"📊",l:"Thống kê",s:"Thống kê"},
- {id:"settings",i:"⚙️",l:"Cài đặt",s:"Cài đặt"}];
-(function(){
-  var nav=$("#nav"),tabs=$("#tabs");
-  PAGES.forEach(function(p){
-    var b=document.createElement("button");b.type="button";b.dataset.go=p.id;
-    b.innerHTML='<span>'+p.i+'</span><span>'+esc(p.l)+'</span><span class="badge" data-badge="'+p.id+'" hidden></span>';
-    nav.appendChild(b);
-    var t=document.createElement("button");t.type="button";t.dataset.go=p.id;
-    t.innerHTML='<em>'+p.i+'</em>'+esc(p.s); tabs.appendChild(t);
-  });
-})();
-function go(id){
-  PAGES.forEach(function(p){$("#p-"+p.id).classList.toggle("on",p.id===id)});
-  Array.prototype.forEach.call(document.querySelectorAll("[data-go]"),function(b){
-    if(b.dataset.go===id)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current")});
-  window.scrollTo(0,0);
-}
-document.addEventListener("click",function(e){var b=e.target.closest("[data-go]");if(b)go(b.dataset.go)});
-
-/* ---------- Hien thi ---------- */
-function renderAll(){$("#todayLabel").textContent=viDate(TODAY);
-  renderHome();renderList();renderBooks();renderNotifs();renderStats();renderSettings();fillFree()}
-function tile(n,l,c){return '<div class="stat '+(c||"")+'"><div class="n mono">'+n+'</div><div class="l">'+esc(l)+'</div></div>'}
-function counts(){
-  var c={total:S.books.length,out:0,soon:0,today:0,late:0,done:0};
-  S.borrows.forEach(function(r){var k=st(r).k;
-    if(k==="returned"){c.done++;return} c.out++;
-    if(k==="due_soon")c.soon++;else if(k==="due_today")c.today++;else if(k==="overdue")c.late++});
-  return c;
-}
-function renderHome(){
-  var c=counts();
-  $("#statGrid").innerHTML=tile(c.total,"Đầu sách trong kho")+tile(c.out,"Đang được mượn")+
-    tile(c.soon,"Sắp đến hạn","warn")+tile(c.today,"Hôm nay đến hạn","today")+
-    tile(c.late,"Quá hạn","late")+tile(c.done,"Đã trả xong","ok");
-  var bd=document.querySelector('[data-badge="list"]');
-  if(bd){if(c.late){bd.hidden=false;bd.textContent=c.late}else bd.hidden=true}
-  $("#homeSoon").innerHTML=mini(["due_soon","due_today"],"Chưa có bạn nào sắp đến hạn trả.");
-  $("#homeLate").innerHTML=mini(["overdue"],"Không có ai quá hạn. Rất tốt.");
-}
-function mini(kinds,empty){
-  var rows=S.borrows.filter(function(r){return kinds.indexOf(st(r).k)>-1})
-    .sort(function(a,b){return a.due_date<b.due_date?-1:1});
-  if(!rows.length)return '<div class="empty">'+esc(empty)+'</div>';
-  return '<div class="tw"><table><thead><tr><th>Họ tên</th><th>Mã sách</th><th>Hạn trả</th><th>Trạng thái</th><th></th></tr></thead><tbody>'+
-   rows.map(function(r){var s=st(r);
-    return '<tr><td>'+esc(r.name)+'</td><td class="code">'+esc(r.book_code)+'</td><td class="mono">'+viDate(r.due_date)+'</td>'+
-    '<td><span class="tag '+s.cls+'">'+s.icon+' '+esc(s.label)+'</span></td>'+
-    '<td><button class="btn sm" type="button" data-act="detail" data-id="'+r.id+'">Xem</button></td></tr>'}).join("")+
-   '</tbody></table></div>';
-}
-function renderList(){
-  var q=($("#q").value||"").trim().toLowerCase(),f=$("#fStatus").value;
-  var rows=S.borrows.filter(function(r){
-    if(f&&st(r).k!==f)return false;
-    if(!q)return true;
-    return [r.name,r.phone,r.email,r.book_code,r.book_name].join(" ").toLowerCase().indexOf(q)>-1});
-  $("#listBody").innerHTML=rows.map(function(r){var s=st(r);
-    return '<tr><td><b>'+esc(r.name)+'</b>'+(r.book_name?'<div class="muted" style="font-size:12.5px">'+esc(r.book_name)+'</div>':'')+'</td>'+
-      '<td class="mono">'+esc(r.phone)+'</td><td>'+esc(r.email)+'</td><td class="code">'+esc(r.book_code)+'</td>'+
-      '<td class="mono">'+viDate(r.borrow_date)+'</td><td class="mono">'+viDate(r.due_date)+'</td>'+
-      '<td><span class="tag '+s.cls+'">'+s.icon+' '+esc(s.label)+'</span></td>'+
-      '<td><div class="row" style="gap:5px;flex-wrap:nowrap">'+
-      '<button class="btn sm" type="button" data-act="detail" data-id="'+r.id+'" title="Thông tin liên hệ">📱</button>'+
-      (r.status!=="returned"?'<button class="btn sm" type="button" data-act="return" data-id="'+r.id+'" title="Đã trả">✅</button>':'')+
-      '<button class="btn sm" type="button" data-act="edit" data-id="'+r.id+'" title="Sửa">✏️</button>'+
-      '<button class="btn sm danger" type="button" data-act="del" data-id="'+r.id+'" title="Xóa">🗑️</button>'+
-      '</div></td></tr>'}).join("");
-  $("#listEmpty").innerHTML=rows.length?"":'<div class="empty"><b>Chưa có lượt mượn nào khớp.</b>Mở trang “Mượn sách” để ghi lượt mượn đầu tiên.</div>';
-}
-function renderBooks(){
-  var q=($("#qb").value||"").trim().toLowerCase();
-  var rows=S.books.filter(function(b){return !q||[b.book_code,b.book_name,b.author,b.category].join(" ").toLowerCase().indexOf(q)>-1});
-  $("#bookBody").innerHTML=rows.map(function(b){
-    var busy=bookBusy(b.book_code);
-    return '<tr><td class="code">'+esc(b.book_code)+'</td><td>'+esc(b.book_name||"—")+'</td>'+
-      '<td>'+esc(b.author||"—")+'</td><td>'+esc(b.category||"—")+'</td>'+
-      '<td><span class="tag '+(busy?"t-late":"t-free")+'">'+(busy?"🔴 Đang được mượn":"🟢 Có sẵn")+'</span></td></tr>'}).join("");
-  $("#bookEmpty").innerHTML=rows.length?"":'<div class="empty"><b>Kho sách đang trống.</b>Thêm sách để theo dõi tình trạng.</div>';
-}
-function fillFree(){
-  $("#freeBooks").innerHTML=S.books.filter(function(b){return !bookBusy(b.book_code)})
-    .map(function(b){return '<option value="'+esc(b.book_code)+'">'+esc(b.book_name||"")+'</option>'}).join("");
-}
-function renderNotifs(){
-  $("#notifBody").innerHTML=S.notifs.map(function(n){
-    var s=n.status==="sent"?'<span class="tag t-free">🟢 Đã gửi</span>'
-      :n.status==="failed"?'<span class="tag t-late">🔴 Gửi thất bại</span>'
-      :n.status==="unconfigured"?'<span class="tag t-late">🔴 '+(n.type==="sms"?"Chưa cấu hình SMS":"Chưa cấu hình Email")+'</span>'
-      :'<span class="tag t-soon">🟡 Chờ gửi</span>';
-    return '<tr><td><b>'+esc(n.to_name||"")+'</b><div class="muted mono" style="font-size:12.5px">'+esc(n.recipient)+'</div></td>'+
-      '<td>'+(n.type==="sms"?"📱 SMS":"📧 Gmail")+'<div class="muted" style="font-size:12px">'+esc(n.rule_key)+'</div></td>'+
-      '<td class="mono">'+esc(n.sent_at?new Date(n.sent_at).toLocaleString("vi-VN"):n.run_date)+'</td>'+
-      '<td style="max-width:320px"><div class="muted" style="font-size:12.5px;white-space:pre-wrap">'+esc(String(n.body||"").slice(0,110))+'…</div></td>'+
-      '<td>'+s+(n.error_message?'<div class="muted" style="font-size:12px">'+esc(n.error_message)+'</div>':'')+'</td></tr>'}).join("");
-  $("#notifEmpty").innerHTML=S.notifs.length?"":'<div class="empty"><b>Chưa có thông báo nào.</b>Bấm “Kiểm tra và gửi ngay” để máy chủ soát lại hạn trả.</div>';
-  var sms=S.server.sms==="da-cau-hinh", mail=S.server.email==="da-cau-hinh";
-  $("#channelState").innerHTML='<div class="note'+((sms||mail)?'':' alert')+'" style="margin-bottom:14px">'+
-    '<b>Tình trạng máy chủ:</b> '+(sms?'📱 SMS đã cấu hình':'📱 <b>Chưa cấu hình SMS</b>')+' · '+
-    (mail?'📧 Email đã cấu hình':'📧 <b>Chưa cấu hình Email</b>')+'<br>'+
-    'Lịch tự động: <b>'+esc(S.server.lich_chay||"")+'</b>. Thông báo chỉ được ghi “Đã gửi” khi nhà cung cấp xác nhận.</div>';
-}
-function renderStats(){
-  var c=counts(),n=S.borrows.length,rank={};
-  S.borrows.forEach(function(r){var k=r.book_code+" "+(r.book_name||"");rank[k]=(rank[k]||0)+1});
-  var top=Object.keys(rank).map(function(k){return[k,rank[k]]}).sort(function(a,b){return b[1]-a[1]}).slice(0,5);
-  var mx=top.length?top[0][1]:1;
-  var h='<h3>Tổng quan</h3><div class="grid stats">'+tile(n,"Tổng lượt mượn")+tile(c.out,"Đang mượn")+
-    tile(c.done,"Đã trả","ok")+tile(n?Math.round(c.done/n*100)+"%":"0%","Tỷ lệ đã trả")+tile(c.late,"Đang quá hạn","late")+'</div>';
-  h+='<h3 style="margin-top:22px">Sách được mượn nhiều nhất</h3>';
-  h+=top.length?top.map(function(t){return '<div style="margin-bottom:10px"><div class="row" style="justify-content:space-between"><span>'+esc(t[0])+'</span><b class="mono">'+t[1]+'</b></div><div class="bar"><i style="width:'+(t[1]/mx*100)+'%"></i></div></div>'}).join("")
-    :'<p class="muted">Chưa có dữ liệu mượn.</p>';
-  $("#statsBox").innerHTML=h;
-}
-function renderSettings(){
-  var sms=S.server.sms==="da-cau-hinh",mail=S.server.email==="da-cau-hinh";
-  $("#settingsBox").innerHTML=
-   '<div class="tw"><table><tbody>'+
-   '<tr><th>Ngày hệ thống</th><td class="mono">'+viDate(S.server.ngay_hom_nay||TODAY)+'</td></tr>'+
-   '<tr><th>Lưu trữ dữ liệu</th><td><span class="tag t-free">🟢 Postgres (Neon) — lâu dài, đồng bộ</span></td></tr>'+
-   '<tr><th>Gửi SMS</th><td>'+(sms?'<span class="tag t-free">🟢 Đã cấu hình</span>':'<span class="tag t-late">🔴 Chưa cấu hình</span>')+'</td></tr>'+
-   '<tr><th>Gửi Email</th><td>'+(mail?'<span class="tag t-free">🟢 Đã cấu hình</span>':'<span class="tag t-late">🔴 Chưa cấu hình</span>')+'</td></tr>'+
-   '<tr><th>Lịch chạy tự động</th><td class="mono">'+esc(S.server.lich_chay||"")+'</td></tr>'+
-   '</tbody></table></div>'+
-   '<div class="note" style="margin-top:14px">Sửa cấu hình: mở tệp <b>.env</b> trong thư mục máy chủ, điền khóa của Twilio / eSMS / Gmail / Brevo, lưu lại rồi khởi động lại bằng <b>npm start</b>. '+
-   'Kiểm tra gửi thật bằng lệnh <b>npm run test-send</b>. Các mốc nhắc (trước 3 ngày, trước 1 ngày, đúng hạn, quá hạn) bật tắt ở nhóm <b>NOTIFY_*</b> trong cùng tệp.</div>';
-}
-
-/* ---------- Hop thoai ---------- */
-var dlg=$("#dlg"),acts=null;
-function openDlg(title,body,btns){
-  $("#dlgTitle").textContent=title; $("#dlgBody").innerHTML=body;
-  $("#dlgFoot").innerHTML=btns.map(function(b,i){return '<button class="btn '+(b.cls||"")+'" type="submit" value="'+i+'">'+esc(b.label)+'</button>'}).join("");
-  acts=btns; dlg.showModal();
-}
-$("#dlgForm").addEventListener("submit",function(e){
-  var v=e.submitter&&e.submitter.value;
-  setTimeout(function(){ if(v!=null&&v!=="cancel"&&acts&&acts[+v]&&acts[+v].run) acts[+v].run() },0);
-});
-function rec(id){return S.borrows.filter(function(r){return String(r.id)===String(id)})[0]}
-
-document.addEventListener("click",function(e){
-  var b=e.target.closest("[data-act]"); if(!b)return;
-  var id=b.dataset.id,a=b.dataset.act;
-  if(a==="detail")return detail(id);
-  if(a==="return")return askReturn(id);
-  if(a==="edit")return edit(id);
-  if(a==="del")return del(id);
-  if(a==="resend")return resend(id);
-});
-function row(k,v){return '<tr><th style="width:44%">'+esc(k)+'</th><td>'+v+'</td></tr>'}
-function detail(id){
-  var r=rec(id); if(!r)return; var s=st(r);
-  openDlg("Thông tin lượt mượn",
-    '<p><b>'+esc(r.name)+'</b> · <span class="tag '+s.cls+'">'+s.icon+' '+esc(s.label)+'</span></p><div class="tw"><table><tbody>'+
-    row("Mã sách",'<span class="code">'+esc(r.book_code)+'</span>')+row("Tên sách",esc(r.book_name||"—"))+
-    row("Số điện thoại",'<a href="tel:'+esc(r.phone)+'">'+esc(r.phone)+'</a>')+
-    row("Gmail",'<a href="mailto:'+esc(r.email)+'">'+esc(r.email)+'</a>')+
-    row("Ngày mượn",viDate(r.borrow_date))+row("Ngày trả",viDate(r.due_date))+
-    (r.actual_return_date?row("Ngày trả thực tế",viDate(r.actual_return_date)):"")+
-    (r.confirmed_by?row("Người xác nhận",esc(r.confirmed_by)):"")+'</tbody></table></div>',
-    r.status==="returned"?[{label:"Đóng"}]
-      :[{label:"📧 Gửi thông báo ngay",run:function(){resend(id)}},{label:"Đóng"}]);
-}
-async function resend(id){
-  try{ var out=await api("/muon/"+id+"/gui-lai",{method:"POST"});
-    toast("Máy chủ đã xử lý: gửi thành công "+out.sent+", thất bại "+out.failed+", chưa cấu hình "+out.unconfigured+".");
-    loadAll(); go("notif");
-  }catch(e){ toast(e.message,true) }
-}
-function askReturn(id){
-  var r=rec(id); if(!r)return;
-  openDlg("Xác nhận đã trả sách",
-    '<p>Ghi nhận bạn <b>'+esc(r.name)+'</b> đã trả sách <b class="code">'+esc(r.book_code)+'</b>?</p>'+
-    '<label class="f"><span>Ngày trả thực tế</span><input type="date" id="rdate" value="'+TODAY+'"></label>',
-    [{label:"Hủy"},{label:"✅ Đã trả sách",cls:"gold",run:async function(){
-      try{ await api("/muon/"+id+"/tra-sach",{method:"POST",body:{actual_return_date:$("#rdate")?$("#rdate").value:TODAY}});
-        toast("Đã ghi nhận trả sách."); loadAll() }catch(e){toast(e.message,true)}
-    }}]);
-}
-function del(id){
-  var r=rec(id); if(!r)return;
-  openDlg("Xóa lượt mượn",'<p>Xóa hẳn lượt mượn của <b>'+esc(r.name)+'</b>? Không hoàn lại được.</p>',
-    [{label:"Giữ lại"},{label:"🗑️ Xóa",cls:"danger",run:async function(){
-      try{ await api("/muon/"+id,{method:"DELETE"}); toast("Đã xóa lượt mượn."); loadAll() }catch(e){toast(e.message,true)}
-    }}]);
-}
-function edit(id){
-  var r=rec(id); if(!r)return;
-  openDlg("Sửa lượt mượn",
-    '<label class="f"><span>Họ và tên</span><input type="text" id="e_name" value="'+esc(r.name)+'"></label>'+
-    '<label class="f"><span>Số điện thoại</span><input type="tel" id="e_phone" value="'+esc(r.phone)+'"></label>'+
-    '<label class="f"><span>Gmail</span><input type="email" id="e_email" value="'+esc(r.email)+'"></label>'+
-    '<label class="f"><span>Ngày mượn</span><input type="date" id="e_bd" value="'+esc(r.borrow_date)+'"></label>'+
-    '<label class="f"><span>Ngày trả</span><input type="date" id="e_dd" value="'+esc(r.due_date)+'"></label>',
-    [{label:"Hủy"},{label:"Lưu thay đổi",cls:"gold",run:async function(){
-      try{ await api("/muon/"+id,{method:"PUT",body:{name:$("#e_name").value.trim(),phone:$("#e_phone").value.trim(),
-        email:$("#e_email").value.trim(),borrow_date:$("#e_bd").value,due_date:$("#e_dd").value}});
-        toast("Đã cập nhật."); loadAll() }catch(e){toast(e.message,true)}
-    }}]);
-}
-$("#addBook").addEventListener("click",function(){
-  openDlg("Thêm sách vào kho",
-    '<label class="f"><span>Mã sách <i class="req">*</i></span><input type="text" id="b_code" placeholder="BOOK001"></label>'+
-    '<label class="f"><span>Tên sách</span><input type="text" id="b_name"></label>'+
-    '<label class="f"><span>Tác giả</span><input type="text" id="b_author"></label>'+
-    '<label class="f"><span>Thể loại</span><input type="text" id="b_cat"></label>',
-    [{label:"Hủy"},{label:"Thêm sách",cls:"gold",run:async function(){
-      var code=$("#b_code").value.trim().toUpperCase();
-      if(!code)return toast("Hãy nhập mã sách.",true);
-      try{ await api("/sach",{method:"POST",body:{book_code:code,book_name:$("#b_name").value.trim(),
-        author:$("#b_author").value.trim(),category:$("#b_cat").value.trim()}});
-        toast("Đã thêm sách "+code+"."); loadAll() }catch(e){toast(e.message,true)}
-    }}]);
-});
-
-/* ---------- Bieu mau muon ---------- */
-var isPhone=function(p){var d=String(p).replace(/[^\d]/g,"");return /^(0|\+?84)\d{8,10}$/.test(String(p).replace(/[\s.-]/g,""))&&d.length>=9&&d.length<=11};
-var isMail=function(m){return /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(String(m))};
-var form=$("#borrowForm");
-form.elements.borrow_date.value=TODAY;
-form.addEventListener("submit",async function(e){
-  e.preventDefault();
-  var f=e.target,g=function(n){return f.elements[n].value.trim()},bad=false;
-  function mark(n,ok,msg){var l=f.elements[n].closest("label.f");l.classList.toggle("bad",!ok);
-    if(!ok){bad=true;var m=l.querySelector("[data-msg]");if(m&&msg)m.textContent=msg}}
-  var v={name:g("name"),phone:g("phone"),email:g("email"),book_code:g("book_code").toUpperCase(),
-    book_name:g("book_name"),borrow_date:g("borrow_date"),due_date:g("due_date")};
-  mark("name",!!v.name); mark("phone",isPhone(v.phone)); mark("email",isMail(v.email)); mark("borrow_date",!!v.borrow_date);
-  if(!v.book_code)mark("book_code",false,"Hãy nhập mã sách.");
-  else if(bookBusy(v.book_code))mark("book_code",false,"Mã "+v.book_code+" đang được bạn khác mượn.");
-  else mark("book_code",true);
-  if(!v.due_date)mark("due_date",false,"Hãy chọn ngày trả.");
-  else if(v.borrow_date&&dayDiff(v.borrow_date,v.due_date)<0)mark("due_date",false,"Ngày trả không được trước ngày mượn.");
-  else mark("due_date",true);
-  if(bad)return toast("Còn ô chưa hợp lệ, hãy kiểm tra lại.",true);
-  try{
-    await api("/muon",{method:"POST",body:v});
-    toast("Đã ghi nhận "+v.name+" mượn "+v.book_code+", hạn trả "+viDate(v.due_date)+".");
-    f.reset(); f.elements.borrow_date.value=TODAY;
-    Array.prototype.forEach.call(f.querySelectorAll("label.f"),function(l){l.classList.remove("bad")});
-    await loadAll(); go("list");
-  }catch(err){ toast(err.message,true) }
-});
-
-$("#runCheck").addEventListener("click",async function(){
-  try{ var r=await api("/kiem-tra-ngay",{method:"POST"});
-    toast("Tạo "+r.created+" thông báo · gửi thật "+r.sent+" · thất bại "+r.failed+" · chưa cấu hình "+r.unconfigured+".");
+  try {
+    var res = await fetch("/api/dang-nhap", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ password: $("#pw").value })
+    });
+    var d = await res.json();
+    if(!res.ok) throw new Error(d.error || "Đăng nhập thất bại.");
+    TOKEN = d.token;
+    try { sessionStorage.setItem("tv-token", TOKEN); } catch(err){}
+    $("#pw").value = "";
+    $("#loginErr").style.display = "none";
+    unlockOverlay();
     loadAll();
-  }catch(e){ toast(e.message,true) }
+    toast("Đăng nhập quản trị thành công!");
+  } catch(err){
+    $("#loginErr").textContent = err.message;
+    $("#loginErr").style.display = "block";
+  }
 });
-$("#exportBorrow").addEventListener("click",function(){
-  var head=["Ho ten","So dien thoai","Gmail","Ma sach","Ten sach","Ngay muon","Ngay tra","Ngay tra thuc te","Trang thai"];
-  var lines=[head.join(",")].concat(S.borrows.map(function(r){
-    return [r.name,r.phone,r.email,r.book_code,r.book_name||"",r.borrow_date,r.due_date,r.actual_return_date||"",st(r).label]
-      .map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(",")}));
-  var blob=new Blob(["\ufeff"+lines.join("\n")],{type:"text/csv;charset=utf-8"});
-  var a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="danh-sach-muon-"+TODAY+".csv";
-  a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},2000);
-});
+$("#logoutBtn").addEventListener("click", function(){ lockOverlay(""); });
 
-/* ---------- Giao dien ---------- */
-function theme(){
-  var c=document.documentElement.getAttribute("data-theme");
-  var n=c==="dark"?"light":(c==="light"?"dark":(matchMedia("(prefers-color-scheme: dark)").matches?"light":"dark"));
-  document.documentElement.setAttribute("data-theme",n);
-  try{localStorage.setItem("tv-theme",n)}catch(e){}
+/* Theme */
+function initTheme(){
+  var current = localStorage.getItem("tv-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  document.documentElement.setAttribute("data-theme", current);
 }
-$("#themeBtn").addEventListener("click",theme); $("#themeBtn2").addEventListener("click",theme);
-try{var t=localStorage.getItem("tv-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}
-$("#q").addEventListener("input",renderList);
-$("#fStatus").addEventListener("change",renderList);
-$("#qb").addEventListener("input",renderBooks);
+$("#themeBtn").addEventListener("click", function(){
+  var current = document.documentElement.getAttribute("data-theme");
+  var next = current === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  localStorage.setItem("tv-theme", next);
+});
+initTheme();
 
-go("home");
-if(TOKEN){ unlock(); loadAll() }
+/* Navigation */
+function goToPage(pageId){
+  $$(".page-panel").forEach(function(p){ p.classList.toggle("active", p.id === "page-" + pageId); });
+  $$("#adminNav button").forEach(function(b){ b.classList.toggle("active", b.dataset.page === pageId); });
+  window.scrollTo(0, 0);
+}
+$$("#adminNav button").forEach(function(btn){
+  btn.addEventListener("click", function(){ goToPage(btn.dataset.page); });
+});
+$("#btnGoToBorrow").addEventListener("click", function(){ goToPage("borrow"); });
+
+/* Data Loading */
+async function loadAll(){
+  try {
+    S.server = await api("/trang-thai");
+    var res = await Promise.all([api("/muon"), api("/sach"), api("/thong-bao")]);
+    S.borrows = res[0] || [];
+    S.books = res[1] || [];
+    S.notifs = res[2] || [];
+    renderAll();
+  } catch(e){
+    if(e.message !== "401") toast(e.message, true);
+  }
+}
+
+function renderAll(){
+  $("#todayLabel").textContent = viDate(TODAY);
+  renderDashboard();
+  renderBorrowList();
+  renderBooksWarehouse();
+  renderNotifications();
+  renderStats();
+  renderSettings();
+  fillFreeBooksAdmin();
+}
+
+function isBookBusy(code){
+  return S.borrows.some(function(r){
+    return r.status !== "returned" && String(r.book_code).toUpperCase() === String(code).trim().toUpperCase();
+  });
+}
+
+function getBorrowStatus(r){
+  var k = r.trang_thai || (r.status === "returned" ? "returned" : "borrowing");
+  if(k === "overdue") return { k: k, label: "Quá hạn " + Math.abs(dayDiff(TODAY, r.due_date)) + " ngày", cls: "badge-overdue", icon: "⚠️" };
+  if(k === "due_soon") return { k: k, label: "Sắp đến hạn (" + dayDiff(TODAY, r.due_date) + " ngày)", cls: "badge-borrowed", icon: "🟡" };
+  if(k === "due_today") return { k: k, label: "Đến hạn hôm nay", cls: "badge-borrowed", icon: "🔴" };
+  if(k === "returned") return { k: k, label: "Đã trả", cls: "badge-returned", icon: "🔵" };
+  return { k: k, label: "Đang mượn", cls: "badge-available", icon: "🟢" };
+}
+
+/* 1. Dashboard Render */
+function renderDashboard(){
+  var c = { total: S.books.length, out: 0, soon: 0, today: 0, late: 0, done: 0 };
+  S.borrows.forEach(function(r){
+    var st = getBorrowStatus(r).k;
+    if(st === "returned") c.done++;
+    else {
+      c.out++;
+      if(st === "due_soon") c.soon++;
+      else if(st === "due_today") c.today++;
+      else if(st === "overdue") c.late++;
+    }
+  });
+
+  $("#statGrid").innerHTML =
+    '<div class="stat-card"><div class="stat-icon-wrapper stat-icon-primary">📚</div><div class="stat-content"><div class="stat-val mono">' + c.total + '</div><div class="stat-lbl">Đầu sách trong kho</div></div></div>' +
+    '<div class="stat-card"><div class="stat-icon-wrapper stat-icon-cyan">📖</div><div class="stat-content"><div class="stat-val mono">' + c.out + '</div><div class="stat-lbl">Đang được mượn</div></div></div>' +
+    '<div class="stat-card"><div class="stat-icon-wrapper stat-icon-amber">⏰</div><div class="stat-content"><div class="stat-val mono">' + c.soon + '</div><div class="stat-lbl">Sắp đến hạn trả</div></div></div>' +
+    '<div class="stat-card"><div class="stat-icon-wrapper stat-icon-rose">⚠️</div><div class="stat-content"><div class="stat-val mono">' + c.late + '</div><div class="stat-lbl">Đang quá hạn</div></div></div>' +
+    '<div class="stat-card"><div class="stat-icon-wrapper stat-icon-emerald">✅</div><div class="stat-content"><div class="stat-val mono">' + c.done + '</div><div class="stat-lbl">Đã trả hoàn tất</div></div></div>';
+
+  var lateBadge = $("#lateBadge");
+  if(c.late > 0){
+    lateBadge.style.display = "inline-block";
+    lateBadge.textContent = c.late;
+  } else {
+    lateBadge.style.display = "none";
+  }
+
+  function renderMiniTable(kinds, emptyMsg){
+    var rows = S.borrows.filter(function(r){ return kinds.includes(getBorrowStatus(r).k); })
+      .sort(function(a, b){ return a.due_date < b.due_date ? -1 : 1; });
+    if(!rows.length) return '<div class="empty-box" style="padding:24px"><p>' + esc(emptyMsg) + '</p></div>';
+
+    return '<div class="table-responsive"><table class="edu-table"><thead><tr><th>Người mượn</th><th>Lớp</th><th>Mã sách</th><th>Hạn trả</th><th>Trạng thái</th><th></th></tr></thead><tbody>' +
+      rows.map(function(r){
+        var s = getBorrowStatus(r);
+        return '<tr>' +
+          '<td><b>' + esc(r.name) + '</b></td>' +
+          '<td><span class="badge-status badge-returned">' + esc(r.class_name || "—") + '</span></td>' +
+          '<td class="code">' + esc(r.book_code) + '</td>' +
+          '<td class="mono">' + viDate(r.due_date) + '</td>' +
+          '<td><span class="badge-status ' + s.cls + '">' + s.icon + ' ' + esc(s.label) + '</span></td>' +
+          '<td><button class="btn btn-secondary btn-sm" type="button" onclick="window.viewBorrowDetail(' + r.id + ')">Xem</button></td>' +
+        '</tr>';
+      }).join("") + '</tbody></table></div>';
+  }
+
+  $("#homeSoonContainer").innerHTML = renderMiniTable(["due_soon", "due_today"], "Không có bạn nào sắp đến hạn trả.");
+  $("#homeLateContainer").innerHTML = renderMiniTable(["overdue"], "Tuyệt vời! Không có lượt mượn nào quá hạn.");
+}
+
+/* 2. Borrow List Render (Includes LỚP) */
+function renderBorrowList(){
+  var q = ($("#searchBorrowsInput").value || "").trim().toLowerCase();
+  var filterStatus = $("#filterBorrowStatus").value;
+
+  var filtered = S.borrows.filter(function(r){
+    var st = getBorrowStatus(r).k;
+    if(filterStatus && st !== filterStatus) return false;
+    if(!q) return true;
+    var str = [r.name, r.class_name, r.phone, r.email, r.book_code, r.book_name].join(" ").toLowerCase();
+    return str.includes(q);
+  });
+
+  if(!filtered.length){
+    $("#borrowListTbody").innerHTML = "";
+    $("#borrowListEmpty").style.display = "block";
+    return;
+  }
+  $("#borrowListEmpty").style.display = "none";
+
+  $("#borrowListTbody").innerHTML = filtered.map(function(r){
+    var s = getBorrowStatus(r);
+    var isReturned = r.status === "returned";
+
+    return '<tr>' +
+      '<td>' +
+        '<b>' + esc(r.name) + '</b>' +
+        (r.book_name ? '<div style="font-size:0.82rem;color:var(--text-soft)">' + esc(r.book_name) + '</div>' : '') +
+      '</td>' +
+      '<td><span class="badge-status badge-returned">' + esc(r.class_name || "—") + '</span></td>' +
+      '<td>' +
+        '<div class="mono" style="font-size:0.88rem">' + esc(r.phone) + '</div>' +
+        '<div style="font-size:0.8rem;color:var(--text-soft)">' + esc(r.email) + '</div>' +
+      '</td>' +
+      '<td class="code" style="color:var(--primary);font-weight:700">' + esc(r.book_code) + '</td>' +
+      '<td class="mono">' + viDate(r.borrow_date) + '</td>' +
+      '<td class="mono">' + viDate(r.due_date) + '</td>' +
+      '<td><span class="badge-status ' + s.cls + '">' + s.icon + ' ' + esc(s.label) + '</span></td>' +
+      '<td style="text-align:right">' +
+        '<div style="display:inline-flex;gap:6px">' +
+          '<button class="btn btn-secondary btn-sm" type="button" title="Xem chi tiết" onclick="window.viewBorrowDetail(' + r.id + ')">📱</button>' +
+          (!isReturned ? '<button class="btn btn-secondary btn-sm" type="button" title="Xác nhận trả sách" onclick="window.confirmReturnBorrow(' + r.id + ')">✅</button>' : '') +
+          '<button class="btn btn-secondary btn-sm" type="button" title="Sửa thông tin" onclick="window.editBorrowItem(' + r.id + ')">✏️</button>' +
+          '<button class="btn btn-danger btn-sm" type="button" title="Xóa lượt mượn" onclick="window.deleteBorrowItem(' + r.id + ')">🗑️</button>' +
+        '</div>' +
+      '</td>' +
+    '</tr>';
+  }).join("");
+}
+
+$("#searchBorrowsInput").addEventListener("input", renderBorrowList);
+$("#filterBorrowStatus").addEventListener("change", renderBorrowList);
+
+/* 3. Books Warehouse Render (SỬA SÁCH, XOÁ SÁCH, MÃ SÁCH) */
+function renderBooksWarehouse(){
+  var q = ($("#searchBooksInput").value || "").trim().toLowerCase();
+  var filtered = S.books.filter(function(b){
+    if(!q) return true;
+    return [b.book_code, b.book_name, b.author, b.category].join(" ").toLowerCase().includes(q);
+  });
+
+  if(!filtered.length){
+    $("#booksWarehouseTbody").innerHTML = "";
+    $("#booksWarehouseEmpty").style.display = "block";
+    return;
+  }
+  $("#booksWarehouseEmpty").style.display = "none";
+
+  $("#booksWarehouseTbody").innerHTML = filtered.map(function(b){
+    var isBusy = isBookBusy(b.book_code);
+    return '<tr>' +
+      '<td class="code" style="color:var(--primary);font-weight:700;font-size:1rem">' + esc(b.book_code) + '</td>' +
+      '<td><b>' + esc(b.book_name || "—") + '</b></td>' +
+      '<td>' + esc(b.author || "—") + '</td>' +
+      '<td>' + esc(b.category || "—") + '</td>' +
+      '<td>' +
+        '<span class="badge-status ' + (isBusy ? "badge-borrowed" : "badge-available") + '">' +
+          (isBusy ? "🟠 Đang được mượn" : "🟢 Có sẵn") +
+        '</span>' +
+      '</td>' +
+      '<td style="text-align:right">' +
+        '<div style="display:inline-flex;gap:6px">' +
+          '<button class="btn btn-secondary btn-sm" type="button" onclick="window.editBookModal(' + b.id + ')">✏️ Sửa</button>' +
+          '<button class="btn btn-danger btn-sm" type="button" onclick="window.deleteBookAction(' + b.id + ',\'' + esc(b.book_code) + '\')">🗑️ Xóa</button>' +
+        '</div>' +
+      '</td>' +
+    '</tr>';
+  }).join("");
+}
+$("#searchBooksInput").addEventListener("input", renderBooksWarehouse);
+
+/* Add Book Modal */
+$("#btnOpenAddBook").addEventListener("click", function(){
+  openModalDialog(
+    "➕ Thêm sách mới vào kho",
+    '<form id="formAddBookModal">' +
+      '<div class="form-group">' +
+        '<label class="form-label">Mã sách <span class="req">*</span></label>' +
+        '<input type="text" class="form-control" id="m_add_code" placeholder="VD: TOAN12, TV007" required>' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label class="form-label">Tên sách</label>' +
+        '<input type="text" class="form-control" id="m_add_name" placeholder="Tên cuốn sách">' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label class="form-label">Tác giả</label>' +
+        '<input type="text" class="form-control" id="m_add_author" placeholder="Tên tác giả">' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label class="form-label">Thể loại</label>' +
+        '<input type="text" class="form-control" id="m_add_cat" placeholder="Văn học, Khoa học, Toán học...">' +
+      '</div>' +
+    '</form>',
+    [
+      { label: "Hủy", cls: "btn-secondary", run: function(){ closeModalDialog(); } },
+      { label: "Thêm sách", cls: "btn-primary", run: async function(){
+        var code = $("#m_add_code").value.trim().toUpperCase();
+        if(!code) return toast("Vui lòng nhập mã sách.", true);
+        try {
+          await api("/sach", {
+            method: "POST",
+            body: {
+              book_code: code,
+              book_name: $("#m_add_name").value.trim(),
+              author: $("#m_add_author").value.trim(),
+              category: $("#m_add_cat").value.trim()
+            }
+          });
+          toast("Đã thêm sách mã " + code + " vào kho!");
+          closeModalDialog();
+          loadAll();
+        } catch(err){
+          toast(err.message, true);
+        }
+      }}
+    ]
+  );
+});
+
+/* Edit Book Modal (ĐƯỢC SỬA MÃ SÁCH, TÊN SÁCH, TÁC GIẢ, THỂ LOẠI) */
+window.editBookModal = function(id){
+  var b = S.books.find(function(item){ return item.id === Number(id); });
+  if(!b) return;
+
+  openModalDialog(
+    "✏️ Chỉnh sửa sách trong kho",
+    '<form id="formEditBookModal">' +
+      '<div class="form-group">' +
+        '<label class="form-label">Mã sách <span class="req">*</span></label>' +
+        '<input type="text" class="form-control" id="m_edit_code" value="' + esc(b.book_code) + '" required>' +
+        '<div style="font-size:0.78rem;color:var(--text-soft);margin-top:4px">Mỗi mã sách là duy nhất trong thư viện.</div>' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label class="form-label">Tên sách</label>' +
+        '<input type="text" class="form-control" id="m_edit_name" value="' + esc(b.book_name || "") + '">' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label class="form-label">Tác giả</label>' +
+        '<input type="text" class="form-control" id="m_edit_author" value="' + esc(b.author || "") + '">' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label class="form-label">Thể loại</label>' +
+        '<input type="text" class="form-control" id="m_edit_cat" value="' + esc(b.category || "") + '">' +
+      '</div>' +
+    '</form>',
+    [
+      { label: "Hủy", cls: "btn-secondary", run: function(){ closeModalDialog(); } },
+      { label: "Lưu thay đổi", cls: "btn-primary", run: async function(){
+        var newCode = $("#m_edit_code").value.trim().toUpperCase();
+        if(!newCode) return toast("Mã sách không được để trống.", true);
+        try {
+          await api("/sach/" + id, {
+            method: "PUT",
+            body: {
+              book_code: newCode,
+              book_name: $("#m_edit_name").value.trim(),
+              author: $("#m_edit_author").value.trim(),
+              category: $("#m_edit_cat").value.trim()
+            }
+          });
+          toast("Đã cập nhật thông tin sách " + newCode + "!");
+          closeModalDialog();
+          loadAll();
+        } catch(err){
+          toast(err.message, true);
+        }
+      }}
+    ]
+  );
+};
+
+/* Delete Book Action (ĐƯỢC QUYỀN XOÁ SÁCH KHỎI KHO) */
+window.deleteBookAction = function(id, code){
+  var isBusy = isBookBusy(code);
+  if(isBusy){
+    openModalDialog(
+      "⚠️ Không thể xóa sách",
+      '<p>Cuốn sách có mã <b>' + esc(code) + '</b> hiện <b>đang có học sinh mượn</b>.</p>' +
+      '<p style="color:var(--text-soft)">Để bảo toàn dữ liệu, bạn cần hoàn tất thủ tục trả sách trước khi xóa cuốn sách này khỏi kho.</p>',
+      [{ label: "Đã hiểu", cls: "btn-primary", run: function(){ closeModalDialog(); } }]
+    );
+    return;
+  }
+
+  openModalDialog(
+    "🗑️ Xác nhận xóa sách khỏi kho",
+    '<p>Bạn có chắc chắn muốn xóa cuốn sách có mã <b class="code" style="color:var(--accent-rose)">' + esc(code) + '</b> khỏi kho sách?</p>' +
+    '<p style="color:var(--text-soft);font-size:0.9rem">Hành động này sẽ xóa dữ liệu cuốn sách và không thể hoàn tác.</p>',
+    [
+      { label: "Giữ lại", cls: "btn-secondary", run: function(){ closeModalDialog(); } },
+      { label: "Xác nhận xóa", cls: "btn-danger", run: async function(){
+        try {
+          await api("/sach/" + id, { method: "DELETE" });
+          toast("Đã xóa cuốn sách " + code + " khỏi kho.");
+          closeModalDialog();
+          loadAll();
+        } catch(err){
+          toast(err.message, true);
+        }
+      }}
+    ]
+  );
+};
+
+/* 4. Notifications Render */
+function renderNotifications(){
+  var sms = S.server.sms === "da-cau-hinh";
+  var mail = S.server.email === "da-cau-hinh";
+
+  $("#channelStateBanner").innerHTML =
+    '<div style="background:var(--surface-subtle);border-left:4px solid var(--primary);padding:14px 18px;border-radius:0 var(--radius-md) var(--radius-md) 0">' +
+      '<b>Trạng thái kênh gửi tin:</b> ' +
+      (sms ? '<span class="badge-status badge-available">📱 SMS Đã kết nối</span> ' : '<span class="badge-status badge-overdue">📱 Chưa cấu hình SMS</span> ') +
+      (mail ? '<span class="badge-status badge-available">📧 Gmail Đã kết nối</span>' : '<span class="badge-status badge-overdue">📧 Chưa cấu hình Gmail</span>') +
+      '<div style="font-size:0.85rem;color:var(--text-soft);margin-top:4px">Lịch chạy tự động mỗi ngày: <b>' + esc(S.server.lich_chay || "0 8 * * *") + '</b>.</div>' +
+    '</div>';
+
+  if(!S.notifs.length){
+    $("#notifHistoryTbody").innerHTML = "";
+    $("#notifEmptyState").style.display = "block";
+    return;
+  }
+  $("#notifEmptyState").style.display = "none";
+
+  $("#notifHistoryTbody").innerHTML = S.notifs.map(function(n){
+    var st = n.status === "sent" ? '<span class="badge-status badge-available">🟢 Đã gửi</span>'
+      : (n.status === "failed" ? '<span class="badge-status badge-overdue">🔴 Thất bại</span>'
+        : (n.status === "unconfigured" ? '<span class="badge-status badge-overdue">🔴 Chưa cấu hình</span>'
+          : '<span class="badge-status badge-borrowed">🟡 Chờ gửi</span>'));
+
+    return '<tr>' +
+      '<td>' +
+        '<b>' + esc(n.to_name || "Độc giả") + '</b>' +
+        '<div class="mono" style="font-size:0.8rem;color:var(--text-soft)">' + esc(n.recipient) + '</div>' +
+      '</td>' +
+      '<td>' + (n.type === "sms" ? "📱 SMS" : "📧 Email") + '</td>' +
+      '<td class="mono" style="font-size:0.85rem">' + esc(n.sent_at ? new Date(n.sent_at).toLocaleString("vi-VN") : n.run_date) + '</td>' +
+      '<td style="max-width:320px;font-size:0.85rem;color:var(--text-soft)">' + esc(String(n.body || "").slice(0, 90)) + '…</td>' +
+      '<td>' + st + '</td>' +
+    '</tr>';
+  }).join("");
+}
+
+$("#btnQuickCheck").addEventListener("click", runCheckNow);
+$("#btnManualCheck").addEventListener("click", runCheckNow);
+
+async function runCheckNow(){
+  try {
+    var res = await api("/kiem-tra-ngay", { method: "POST" });
+    toast("Quét hoàn tất: tạo " + res.created + " thông báo, gửi thành công " + res.sent + ", thất bại " + res.failed + ".");
+    loadAll();
+  } catch(e){
+    toast(e.message, true);
+  }
+}
+
+/* 5. Statistics Render */
+function renderStats(){
+  var c = { out: 0, done: 0, late: 0 };
+  var rank = {};
+  S.borrows.forEach(function(r){
+    var st = getBorrowStatus(r).k;
+    if(st === "returned") c.done++;
+    else {
+      c.out++;
+      if(st === "overdue") c.late++;
+    }
+    var key = r.book_code + (r.book_name ? " (" + r.book_name + ")" : "");
+    rank[key] = (rank[key] || 0) + 1;
+  });
+
+  var total = S.borrows.length;
+  var topBooks = Object.keys(rank).map(function(k){ return [k, rank[k]]; }).sort(function(a,b){ return b[1] - a[1]; }).slice(0, 5);
+  var maxVal = topBooks.length ? topBooks[0][1] : 1;
+
+  $("#statsDetailsBox").innerHTML =
+    '<div class="stats-grid">' +
+      '<div class="stat-card"><div class="stat-icon-wrapper stat-icon-primary">📖</div><div class="stat-content"><div class="stat-val mono">' + total + '</div><div class="stat-lbl">Tổng lượt mượn từ trước tới nay</div></div></div>' +
+      '<div class="stat-card"><div class="stat-icon-wrapper stat-icon-emerald">✅</div><div class="stat-content"><div class="stat-val mono">' + (total ? Math.round(c.done / total * 100) : 0) + '%</div><div class="stat-lbl">Tỷ lệ đã hoàn trả đúng hẹn</div></div></div>' +
+      '<div class="stat-card"><div class="stat-icon-wrapper stat-icon-rose">⚠️</div><div class="stat-content"><div class="stat-val mono">' + c.late + '</div><div class="stat-lbl">Lượt mượn đang bị quá hạn</div></div></div>' +
+    '</div>' +
+    '<h3 style="margin-top:24px;margin-bottom:14px">Top cuốn sách được học sinh mượn nhiều nhất</h3>' +
+    (topBooks.length ? topBooks.map(function(item){
+      var pct = Math.round((item[1] / maxVal) * 100);
+      return '<div style="margin-bottom:12px">' +
+        '<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:0.92rem">' +
+          '<span>' + esc(item[0]) + '</span>' +
+          '<b class="mono">' + item[1] + ' lượt mượn</b>' +
+        '</div>' +
+        '<div class="progress-bar-track"><div class="progress-bar-fill" style="width:' + pct + '%"></div></div>' +
+      '</div>';
+    }).join("") : '<p style="color:var(--text-soft)">Chưa có đủ dữ liệu thống kê.</p>');
+}
+
+/* 6. Settings Render */
+function renderSettings(){
+  var sms = S.server.sms === "da-cau-hinh";
+  var mail = S.server.email === "da-cau-hinh";
+
+  $("#settingsDetailsBox").innerHTML =
+    '<div class="table-responsive">' +
+      '<table class="edu-table"><tbody>' +
+        '<tr><th style="width:30%">Ngày hệ thống</th><td class="mono">' + viDate(S.server.ngay_hom_nay || TODAY) + '</td></tr>' +
+        '<tr><th>Cơ sở dữ liệu</th><td><span class="badge-status badge-available">🟢 Đang hoạt động ổn định</span></td></tr>' +
+        '<tr><th>Kênh gửi SMS</th><td>' + (sms ? '<span class="badge-status badge-available">🟢 Đã kích hoạt</span>' : '<span class="badge-status badge-overdue">🔴 Chưa cấu hình (none)</span>') + '</td></tr>' +
+        '<tr><th>Kênh gửi Email</th><td>' + (mail ? '<span class="badge-status badge-available">🟢 Đã kích hoạt</span>' : '<span class="badge-status badge-overdue">🔴 Chưa cấu hình (none)</span>') + '</td></tr>' +
+        '<tr><th>Lịch chạy tự động</th><td class="mono">' + esc(S.server.lich_chay || "0 8 * * *") + '</td></tr>' +
+      '</tbody></table>' +
+    '</div>' +
+    '<div style="margin-top:20px;padding:16px 20px;background:var(--surface-subtle);border-radius:var(--radius-lg);font-size:0.92rem;color:var(--text-soft)">' +
+      '💡 <b>Hướng dẫn kết nối dịch vụ ngoài:</b> Để gửi SMS thật (qua Twilio/eSMS) hoặc Email thật (qua Gmail App Password/Brevo), điền thông tin tương ứng trong tệp <b>.env</b> trên máy chủ và khởi động lại. Tất cả khóa API được giữ bí mật an toàn trên backend.' +
+    '</div>';
+}
+
+/* Free Books Datalist */
+function fillFreeBooksAdmin(){
+  var list = $("#freeBooksAdminList");
+  list.innerHTML = S.books
+    .filter(function(b){ return !isBookBusy(b.book_code); })
+    .map(function(b){ return '<option value="' + esc(b.book_code) + '">' + esc(b.book_name || "") + '</option>'; })
+    .join("");
+}
+
+/* Admin Borrow Form Submit (Includes LỚP) */
+var isPhone = function(p){ var d = String(p).replace(/[^\d]/g, ""); return /^(0|\+?84)\d{8,10}$/.test(String(p).replace(/[\s.-]/g, "")) && d.length >= 9 && d.length <= 11; };
+var isMail = function(m){ return /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(String(m)); };
+
+var formBorrow = $("#adminBorrowForm");
+formBorrow.elements.borrow_date.value = TODAY;
+
+formBorrow.addEventListener("submit", async function(e){
+  e.preventDefault();
+  var f = e.target, bad = false;
+  function mark(name, ok, msg){
+    var group = f.elements[name].closest(".form-group");
+    group.classList.toggle("has-error", !ok);
+    if(!ok){
+      bad = true;
+      var errEl = group.querySelector(".form-error");
+      if(errEl && msg) errEl.textContent = msg;
+    }
+  }
+
+  var code = f.book_code.value.trim().toUpperCase();
+  var busy = isBookBusy(code);
+
+  var v = {
+    name: f.name.value.trim(),
+    class_name: f.class_name.value.trim(),
+    phone: f.phone.value.trim(),
+    email: f.email.value.trim(),
+    book_code: code,
+    book_name: f.book_name.value.trim(),
+    borrow_date: f.borrow_date.value,
+    due_date: f.due_date.value
+  };
+
+  mark("name", v.name.length >= 2, "Vui lòng nhập họ và tên.");
+  mark("class_name", v.class_name.length >= 1, "Vui lòng nhập lớp học.");
+  mark("phone", isPhone(v.phone), "Số điện thoại chưa hợp lệ.");
+  mark("email", isMail(v.email), "Địa chỉ Gmail chưa hợp lệ.");
+  mark("borrow_date", !!v.borrow_date, "Vui lòng chọn ngày mượn.");
+
+  if(!v.book_code) mark("book_code", false, "Hãy nhập mã sách.");
+  else if(busy) mark("book_code", false, "Mã " + v.book_code + " đang có người mượn.");
+  else mark("book_code", true);
+
+  if(!v.due_date) mark("due_date", false, "Hãy chọn ngày trả.");
+  else if(v.borrow_date && dayDiff(v.borrow_date, v.due_date) < 0) mark("due_date", false, "Ngày trả không được trước ngày mượn.");
+  else mark("due_date", true);
+
+  if(bad) return toast("Vui lòng kiểm tra lại các trường thông tin.", true);
+
+  try {
+    await api("/muon", { method: "POST", body: v });
+    toast("Đã ghi nhận " + v.name + " (" + v.class_name + ") mượn " + v.book_code + ".");
+    f.reset();
+    f.elements.borrow_date.value = TODAY;
+    await loadAll();
+    goToPage("list");
+  } catch(err){
+    toast(err.message, true);
+  }
+});
+
+/* Modal Dialog Helper */
+var modalDlg = $("#adminModal");
+var modalActions = null;
+
+function openModalDialog(title, bodyHtml, buttons){
+  $("#adminModalTitle").textContent = title;
+  $("#adminModalBody").innerHTML = bodyHtml;
+  $("#adminModalFooter").innerHTML = buttons.map(function(b, i){
+    return '<button class="btn ' + (b.cls || "btn-secondary") + '" type="button" data-act-idx="' + i + '">' + esc(b.label) + '</button>';
+  }).join("");
+  modalActions = buttons;
+
+  $$("#adminModalFooter button").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var idx = Number(btn.dataset.actIdx);
+      if(modalActions && modalActions[idx] && modalActions[idx].run){
+        modalActions[idx].run();
+      }
+    });
+  });
+
+  modalDlg.showModal();
+}
+function closeModalDialog(){
+  modalDlg.close();
+}
+
+/* Borrow Item Detail Modal (Displays LỚP) */
+window.viewBorrowDetail = function(id){
+  var r = S.borrows.find(function(item){ return item.id === Number(id); });
+  if(!r) return;
+  var s = getBorrowStatus(r);
+
+  openModalDialog(
+    "Chi tiết lượt mượn",
+    '<div style="margin-bottom:14px"><b>' + esc(r.name) + '</b> · <span class="badge-status ' + s.cls + '">' + s.icon + ' ' + esc(s.label) + '</span></div>' +
+    '<div class="table-responsive"><table class="edu-table"><tbody>' +
+      '<tr><th style="width:36%">Lớp</th><td><b style="color:var(--primary)">' + esc(r.class_name || "Chưa cập nhật") + '</b></td></tr>' +
+      '<tr><th>Mã sách</th><td><span class="code" style="color:var(--primary)">' + esc(r.book_code) + '</span></td></tr>' +
+      '<tr><th>Tên sách</th><td>' + esc(r.book_name || "—") + '</td></tr>' +
+      '<tr><th>Số điện thoại</th><td><a href="tel:' + esc(r.phone) + '">' + esc(r.phone) + '</a></td></tr>' +
+      '<tr><th>Gmail</th><td><a href="mailto:' + esc(r.email) + '">' + esc(r.email) + '</a></td></tr>' +
+      '<tr><th>Ngày mượn</th><td class="mono">' + viDate(r.borrow_date) + '</td></tr>' +
+      '<tr><th>Ngày trả</th><td class="mono">' + viDate(r.due_date) + '</td></tr>' +
+      (r.actual_return_date ? '<tr><th>Ngày trả thực tế</th><td class="mono">' + viDate(r.actual_return_date) + '</td></tr>' : '') +
+      (r.confirmed_by ? '<tr><th>Người xác nhận</th><td>' + esc(r.confirmed_by) + '</td></tr>' : '') +
+    '</tbody></table></div>',
+    [
+      { label: "Đóng", cls: "btn-secondary", run: function(){ closeModalDialog(); } },
+      (r.status !== "returned" ? {
+        label: "📧 Gửi thông báo ngay",
+        cls: "btn-primary",
+        run: async function(){
+          try {
+            var out = await api("/muon/" + id + "/gui-lai", { method: "POST" });
+            toast("Đã xử lý thông báo: gửi thành công " + out.sent + ", thất bại " + out.failed + ".");
+            closeModalDialog();
+            loadAll();
+            goToPage("notif");
+          } catch(err){
+            toast(err.message, true);
+          }
+        }
+      } : null)
+    ].filter(Boolean)
+  );
+};
+
+/* Confirm Return Borrow */
+window.confirmReturnBorrow = function(id){
+  var r = S.borrows.find(function(item){ return item.id === Number(id); });
+  if(!r) return;
+
+  openModalDialog(
+    "Xác nhận đã trả sách",
+    '<p>Xác nhận bạn <b>' + esc(r.name) + '</b> (Lớp: ' + esc(r.class_name || "—") + ') đã trả lại cuốn sách <b class="code">' + esc(r.book_code) + '</b>?</p>' +
+    '<div class="form-group">' +
+      '<label class="form-label">Ngày trả thực tế</label>' +
+      '<input type="date" class="form-control" id="actualReturnDateInput" value="' + TODAY + '">' +
+    '</div>',
+    [
+      { label: "Hủy", cls: "btn-secondary", run: function(){ closeModalDialog(); } },
+      { label: "✅ Xác nhận đã trả", cls: "btn-primary", run: async function(){
+        try {
+          var returnDate = $("#actualReturnDateInput") ? $("#actualReturnDateInput").value : TODAY;
+          await api("/muon/" + id + "/tra-sach", {
+            method: "POST",
+            body: { actual_return_date: returnDate, confirmed_by: "Quản trị viên" }
+          });
+          toast("Đã ghi nhận trả sách cho " + r.name + "!");
+          closeModalDialog();
+          loadAll();
+        } catch(err){
+          toast(err.message, true);
+        }
+      }}
+    ]
+  );
+};
+
+/* Edit Borrow Item Modal (Includes LỚP) */
+window.editBorrowItem = function(id){
+  var r = S.borrows.find(function(item){ return item.id === Number(id); });
+  if(!r) return;
+
+  openModalDialog(
+    "✏️ Chỉnh sửa phiếu mượn",
+    '<form id="formEditBorrowModal">' +
+      '<div class="form-row-two">' +
+        '<div class="form-group">' +
+          '<label class="form-label">Họ và tên</label>' +
+          '<input type="text" class="form-control" id="eb_name" value="' + esc(r.name) + '">' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label class="form-label">Lớp</label>' +
+          '<input type="text" class="form-control" id="eb_class" value="' + esc(r.class_name || "") + '">' +
+        '</div>' +
+      '</div>' +
+      '<div class="form-row-two">' +
+        '<div class="form-group">' +
+          '<label class="form-label">Số điện thoại</label>' +
+          '<input type="tel" class="form-control" id="eb_phone" value="' + esc(r.phone) + '">' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label class="form-label">Gmail</label>' +
+          '<input type="email" class="form-control" id="eb_email" value="' + esc(r.email) + '">' +
+        '</div>' +
+      '</div>' +
+      '<div class="form-row-two">' +
+        '<div class="form-group">' +
+          '<label class="form-label">Ngày mượn</label>' +
+          '<input type="date" class="form-control" id="eb_bd" value="' + esc(r.borrow_date) + '">' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label class="form-label">Ngày trả</label>' +
+          '<input type="date" class="form-control" id="eb_dd" value="' + esc(r.due_date) + '">' +
+        '</div>' +
+      '</div>' +
+    '</form>',
+    [
+      { label: "Hủy", cls: "btn-secondary", run: function(){ closeModalDialog(); } },
+      { label: "Lưu thay đổi", cls: "btn-primary", run: async function(){
+        try {
+          await api("/muon/" + id, {
+            method: "PUT",
+            body: {
+              name: $("#eb_name").value.trim(),
+              class_name: $("#eb_class").value.trim(),
+              phone: $("#eb_phone").value.trim(),
+              email: $("#eb_email").value.trim(),
+              borrow_date: $("#eb_bd").value,
+              due_date: $("#eb_dd").value
+            }
+          });
+          toast("Đã cập nhật lượt mượn!");
+          closeModalDialog();
+          loadAll();
+        } catch(err){
+          toast(err.message, true);
+        }
+      }}
+    ]
+  );
+};
+
+/* Delete Borrow Item */
+window.deleteBorrowItem = function(id){
+  var r = S.borrows.find(function(item){ return item.id === Number(id); });
+  if(!r) return;
+
+  openModalDialog(
+    "Xóa lượt mượn",
+    '<p>Xóa lượt mượn của bạn <b>' + esc(r.name) + '</b> (Mã sách: <b class="code">' + esc(r.book_code) + '</b>)?</p>' +
+    '<p style="color:var(--text-soft);font-size:0.88rem">Hành động này sẽ xóa dữ liệu và trả lại trạng thái sách sẵn sàng.</p>',
+    [
+      { label: "Hủy", cls: "btn-secondary", run: function(){ closeModalDialog(); } },
+      { label: "Xác nhận xóa", cls: "btn-danger", run: async function(){
+        try {
+          await api("/muon/" + id, { method: "DELETE" });
+          toast("Đã xóa lượt mượn.");
+          closeModalDialog();
+          loadAll();
+        } catch(err){
+          toast(err.message, true);
+        }
+      }}
+    ]
+  );
+};
+
+/* Export CSV (Includes LỚP) */
+$("#exportCsvBtn").addEventListener("click", function(){
+  var header = ["Ho ten", "Lop", "So dien thoai", "Gmail", "Ma sach", "Ten sach", "Ngay muon", "Ngay tra", "Ngay tra thuc te", "Trang thai"];
+  var lines = [header.join(",")].concat(S.borrows.map(function(r){
+    var st = getBorrowStatus(r).label;
+    return [
+      r.name,
+      r.class_name || "",
+      r.phone,
+      r.email,
+      r.book_code,
+      r.book_name || "",
+      r.borrow_date,
+      r.due_date,
+      r.actual_return_date || "",
+      st
+    ].map(function(v){ return '"' + String(v).replace(/"/g, '""') + '"'; }).join(",");
+  }));
+
+  var blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "danh-sach-muon-" + TODAY + ".csv";
+  a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+});
+
+/* Init */
+if(TOKEN){
+  unlockOverlay();
+  loadAll();
+} else {
+  lockOverlay();
+}
+
 })();
 </script>
 </body>

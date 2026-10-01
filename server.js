@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import cron from "node-cron";
 import {
   db, listBorrows, getBorrow, createBorrow, createBorrowForAccount, markReturned,
-  listNotifications, upsertBook, queueNotification,
+  listNotifications, upsertBook, updateBook, deleteBook, queueNotification,
   findAccountByIdentifier, createAccount, getUserById, myBorrows,
 } from "./src/db.js";
 import { runDailyCheck, statusOf, todayISO, flushQueue } from "./src/checker.js";
@@ -19,6 +19,9 @@ app.use(express.json({ limit: "256kb" }));
 
 /** Boc route bat dong bo de loi duoc chuyen dung sang middleware xu ly loi ben duoi. */
 const ah = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
+// Static assets
+app.use("/assets", express.static(path.join(__dirname, "src", "assets")));
 
 // Trang mo dau tien la trang muon sach danh cho hoc sinh.
 // Trang quan tri van dung duoc binh thuong o dia chi /index.html
@@ -43,7 +46,7 @@ app.post("/api/dang-nhap", (req, res) => {
 
 /* ============ Tai khoan nguoi muon (hoc sinh tu dang ky) ============ */
 app.post("/api/dang-ky", ah(async (req, res) => {
-  const { name, phone, email, password } = req.body || {};
+  const { name, phone, email, password, class_name, lop } = req.body || {};
   const errors = [];
   if (!name || String(name).trim().length < 2) errors.push("Họ và tên không được để trống.");
   if (!isPhone(phone)) errors.push("Số điện thoại không hợp lệ.");
@@ -53,7 +56,14 @@ app.post("/api/dang-ky", ah(async (req, res) => {
 
   try {
     const { salt, hash } = hashPassword(String(password));
-    const id = await createAccount({ name: name.trim(), phone: phone.trim(), email: email.trim().toLowerCase(), hash, salt });
+    const id = await createAccount({
+      name: name.trim(),
+      class_name: String(class_name || lop || "").trim(),
+      phone: phone.trim(),
+      email: email.trim().toLowerCase(),
+      hash,
+      salt,
+    });
     const token = makeToken({ role: "docgia", uid: id });
     res.status(201).json({ token, name: name.trim() });
   } catch (e) {
@@ -85,7 +95,11 @@ app.get("/api/toi/luot-muon", requireAccount, ah(async (req, res) => {
 }));
 
 app.post("/api/toi/muon", requireAccount, ah(async (req, res) => {
-  const b = { ...(req.body || {}), book_code: String(req.body?.book_code || "").trim().toUpperCase() };
+  const b = {
+    ...(req.body || {}),
+    book_code: String(req.body?.book_code || "").trim().toUpperCase(),
+    class_name: String(req.body?.class_name || req.body?.lop || "").trim(),
+  };
   const errors = [];
   if (!b.book_code) errors.push("Thiếu mã sách.");
   if (!isDate(b.borrow_date)) errors.push("Ngày mượn không hợp lệ.");
@@ -142,7 +156,7 @@ app.get("/api/muon", auth, ah(async (req, res) => {
   const q = String(req.query.q || "").toLowerCase();
   const today = todayISO();
   let rows = (await listBorrows()).map((r) => ({ ...r, trang_thai: statusOf(r, today) }));
-  if (q) rows = rows.filter((r) => [r.name, r.phone, r.email, r.book_code, r.book_name].join(" ").toLowerCase().includes(q));
+  if (q) rows = rows.filter((r) => [r.name, r.class_name, r.phone, r.email, r.book_code, r.book_name].join(" ").toLowerCase().includes(q));
   res.json(rows);
 }));
 
@@ -165,8 +179,10 @@ app.put("/api/muon/:id", auth, ah(async (req, res) => {
   const merged = { ...rec, ...req.body };
   const errors = validateBorrow(merged);
   if (errors.length) return res.status(400).json({ error: errors.join(" ") });
-  await db.execute({ sql: "UPDATE users SET name=?, phone=?, email=? WHERE id=?",
-    args: [merged.name, merged.phone, merged.email, rec.user_id] });
+  await db.execute({
+    sql: "UPDATE users SET name=?, phone=?, email=?, class_name=? WHERE id=?",
+    args: [merged.name, merged.phone, merged.email, String(merged.class_name || merged.lop || "").trim(), rec.user_id],
+  });
   await db.execute({ sql: "UPDATE borrow_records SET borrow_date=?, due_date=? WHERE id=?",
     args: [merged.borrow_date, merged.due_date, rec.id] });
   res.json(await getBorrow(rec.id));
@@ -200,6 +216,24 @@ app.post("/api/sach", auth, ah(async (req, res) => {
   const id = await upsertBook(req.body);
   const r = await db.execute({ sql: "SELECT * FROM books WHERE id = ?", args: [id] });
   res.status(201).json(r.rows[0]);
+}));
+
+app.put("/api/sach/:id", auth, ah(async (req, res) => {
+  try {
+    const book = await updateBook(req.params.id, req.body || {});
+    res.json(book);
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+}));
+
+app.delete("/api/sach/:id", auth, ah(async (req, res) => {
+  try {
+    await deleteBook(req.params.id);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 }));
 
 app.get("/api/thong-bao", auth, ah(async (req, res) => res.json(await listNotifications())));

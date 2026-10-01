@@ -3,246 +3,953 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Mượn sách – Thư viện lớp</title>
-<meta name="description" content="Trang học sinh tra cứu và tự mượn sách thư viện lớp.">
-<meta property="og:title" content="Mượn sách – Thư viện lớp">
-<meta property="og:description" content="Trang học sinh tra cứu và tự mượn sách thư viện lớp.">
+<title>Thư viện lớp – Nền tảng mượn & đọc sách học sinh</title>
+<meta name="description" content="Hệ thống tra cứu, mượn sách và quản lý hạn trả hiện đại cho học sinh theo phong cách EdTech.">
+<meta property="og:title" content="Thư viện lớp – Nền tảng mượn & đọc sách học sinh">
+<meta property="og:description" content="Hệ thống tra cứu, mượn sách và quản lý hạn trả hiện đại cho học sinh theo phong cách EdTech.">
 <link rel="stylesheet" href="style.css">
-<style>
-  body{background:var(--paper)}
-  .wrap{max-width:560px;margin:0 auto;padding:20px 16px 60px}
-  .top{display:flex;align-items:center;gap:10px;padding:6px 2px 18px}
-  .top .brand-mark{width:36px;height:36px;flex:0 0 36px;background:var(--gold);border-radius:10px;display:grid;place-items:center;font-weight:700;color:#2a1c04}
-  .top b{font-size:16px}
-  .top span{display:block;font-size:12px;color:var(--text-soft)}
-  .top .theme{margin-left:auto;background:none;border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer}
-  .switch{display:flex;gap:8px;margin-bottom:16px}
-  .switch button{flex:1;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-weight:600}
-  .switch button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
-  .hide{display:none}
-  .adminlink{display:block;text-align:center;margin-top:22px;color:var(--text-soft);font-size:13px}
-</style>
 </head>
 <body>
-<div class="wrap">
-  <div class="top">
-    <div class="brand-mark">TV</div>
-    <div><b>Thư viện lớp</b><span>Học sinh mượn sách</span></div>
-    <button class="theme" id="themeBtn" type="button">Sáng/Tối</button>
-  </div>
 
-  <!-- CHUA DANG NHAP -->
-  <div id="guest">
-    <div class="switch">
-      <button type="button" id="tabLogin" class="on">Đăng nhập</button>
-      <button type="button" id="tabRegister">Đăng ký tài khoản</button>
-    </div>
-
-    <div class="card" id="loginBox">
-      <h3>Đăng nhập</h3>
-      <form id="loginForm">
-        <label class="f"><span>Số điện thoại hoặc Gmail</span><input type="text" name="dinh_danh" autocomplete="username" placeholder="0912345678 hoặc tenban@gmail.com"></label>
-        <label class="f"><span>Mật khẩu</span><input type="password" name="password" autocomplete="current-password"></label>
-        <div class="err" id="loginErr" style="display:none;margin-bottom:10px"></div>
-        <button class="btn gold" type="submit" style="width:100%;justify-content:center">Đăng nhập</button>
-      </form>
-    </div>
-
-    <div class="card hide" id="registerBox">
-      <h3>Đăng ký tài khoản mới</h3>
-      <form id="registerForm" novalidate>
-        <label class="f"><span>Họ và tên <i class="req">*</i></span><input type="text" name="name" placeholder="Nguyễn Văn A"><div class="err">Hãy nhập họ và tên.</div></label>
-        <label class="f"><span>Số điện thoại <i class="req">*</i></span><input type="tel" name="phone" placeholder="0912345678"><div class="err">Số điện thoại chưa hợp lệ.</div></label>
-        <label class="f"><span>Gmail <i class="req">*</i></span><input type="email" name="email" placeholder="tenban@gmail.com"><div class="err">Gmail chưa hợp lệ.</div></label>
-        <label class="f"><span>Mật khẩu <i class="req">*</i></span><input type="password" name="password" autocomplete="new-password" placeholder="Ít nhất 6 ký tự"><div class="err">Mật khẩu cần ít nhất 6 ký tự.</div></label>
-        <label class="f"><span>Nhập lại mật khẩu <i class="req">*</i></span><input type="password" name="password2" autocomplete="new-password"><div class="err">Mật khẩu nhập lại không khớp.</div></label>
-        <div class="err" id="regErr" style="display:none;margin-bottom:10px"></div>
-        <button class="btn gold" type="submit" style="width:100%;justify-content:center">Đăng ký</button>
-      </form>
-    </div>
-
-    <a class="adminlink" href="index.html">Bạn là quản trị viên / thầy cô phụ trách? Vào đây</a>
-  </div>
-
-  <!-- DA DANG NHAP -->
-  <div id="member" class="hide">
-    <div class="row" style="justify-content:space-between;margin-bottom:14px">
-      <div><b id="hiName"></b><div class="muted" style="font-size:13px">Ngày hôm nay: <span id="today"></span></div></div>
-      <button class="btn sm" id="logout" type="button">Đăng xuất</button>
-    </div>
-
-    <div class="card">
-      <h3>📚 Mượn sách mới</h3>
-      <form id="borrowForm" novalidate>
-        <label class="f"><span>Mã sách <i class="req">*</i></span>
-          <input type="text" name="book_code" list="freeBooks" placeholder="BOOK001">
-          <datalist id="freeBooks"></datalist>
-          <div class="err" data-msg>Hãy nhập mã sách.</div></label>
-        <label class="f"><span>Tên sách <span class="muted">(nếu có)</span></span><input type="text" name="book_name"></label>
-        <div class="two">
-          <label class="f"><span>Ngày mượn <i class="req">*</i></span><input type="date" name="borrow_date"><div class="err">Hãy chọn ngày mượn.</div></label>
-          <label class="f"><span>Ngày trả <i class="req">*</i></span><input type="date" name="due_date"><div class="err" data-msg>Hãy chọn ngày trả.</div></label>
-        </div>
-        <button class="btn gold" type="submit">📚 Xác nhận mượn sách</button>
-      </form>
-    </div>
-
-    <h2 style="margin-top:24px">Sách bạn đang mượn / đã mượn</h2>
-    <div class="card" id="myList"></div>
-
-    <h2 style="margin-top:24px">📖 Sách có sẵn trong kho</h2>
-    <div class="card" id="freeList"></div>
-  </div>
+<!-- Background Ambient Graphics -->
+<div class="bg-ambient">
+  <div class="bg-blob-1"></div>
+  <div class="bg-blob-2"></div>
+  <div class="bg-grid"></div>
 </div>
 
+<!-- Header -->
+<header class="edu-header">
+  <div class="header-inner">
+    <a href="#" class="brand-link" id="brandLogo">
+      <div class="brand-icon">📚</div>
+      <div class="brand-text">
+        <b>Thư viện lớp</b>
+        <span>Học tập & Tri thức</span>
+      </div>
+    </a>
+
+    <nav class="header-nav" id="mainNav">
+      <a href="#hero" class="nav-item active" data-nav="hero">Trang chủ</a>
+      <a href="#catalog" class="nav-item" data-nav="catalog">Thư viện sách</a>
+      <a href="#searchSection" class="nav-item" data-nav="search">Tìm sách</a>
+      <button type="button" class="nav-item" id="navBorrowBtn">Mượn sách</button>
+      <a href="#guide" class="nav-item" data-nav="guide">Hướng dẫn</a>
+    </nav>
+
+    <div class="header-actions">
+      <!-- Dark/Light Theme Button -->
+      <button class="btn btn-secondary btn-icon" id="themeBtn" type="button" aria-label="Đổi giao diện sáng/tối" title="Đổi sáng/tối">
+        <span id="themeIcon">🌙</span>
+      </button>
+
+      <!-- Guest Controls -->
+      <div id="guestControls" style="display:flex;gap:8px;">
+        <button class="btn btn-secondary btn-sm" id="btnOpenLogin" type="button">Đăng nhập</button>
+        <button class="btn btn-primary btn-sm" id="btnOpenRegister" type="button">Đăng ký</button>
+      </div>
+
+      <!-- Member Controls -->
+      <div id="memberControls" style="display:none;align-items:center;gap:10px;">
+        <div class="user-pill" id="userPill">
+          <div class="user-avatar" id="avatarLetter">A</div>
+          <div>
+            <div class="user-name" id="userNameLabel">Học sinh</div>
+            <div class="user-badge" id="userClassLabel">Lớp 12A1</div>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-sm" id="btnLogout" type="button">Đăng xuất</button>
+      </div>
+
+      <!-- Mobile Hamburger -->
+      <button class="btn btn-secondary btn-icon" id="menuToggle" type="button" style="display:none" aria-label="Menu">☰</button>
+    </div>
+  </div>
+</header>
+
+<!-- Main Container -->
+<main class="app-container">
+
+  <!-- HERO SECTION -->
+  <section class="hero-section" id="hero">
+    <div class="hero-grid">
+      <div class="hero-content">
+        <div class="hero-badge-tag">
+          <span>✨</span> Nền tảng thư viện thông minh
+        </div>
+        <h1>Khám phá <span class="gradient-text">thế giới tri thức</span> bất tận</h1>
+        <p class="sub">Tra cứu, mượn và quản lý sách thư viện một cách nhanh chóng và dễ dàng. Tự do lựa chọn ngày trả phù hợp với kế hoạch học tập của bạn.</p>
+        
+        <div class="hero-actions">
+          <a href="#catalog" class="btn btn-primary btn-lg">🚀 Khám phá thư viện</a>
+          <a href="#searchSection" class="btn btn-secondary btn-lg">🔍 Tìm sách</a>
+          <a href="index.html" class="btn btn-secondary btn-sm" style="align-self:center;margin-left:auto;color:var(--text-soft)">Dành cho Giáo viên & Quản trị →</a>
+        </div>
+      </div>
+
+      <div class="hero-artwork">
+        <div class="hero-image-card">
+          <img src="/assets/images/hero_library_edtech_1790832788401.jpg" alt="Thư viện hiện đại" onerror="this.src='https://placehold.co/600x450/4f46e5/ffffff?text=Thu+Vien+Lop'">
+          <div class="floating-stat-badge">
+            <div class="floating-stat-icon">📖</div>
+            <div>
+              <b id="heroBooksCount">0 cuốn sách</b>
+              <span>Sẵn sàng cho bạn mượn</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STUDENT DASHBOARD (When Logged In) -->
+  <section id="dashboardSection" style="display:none;margin-top:20px;">
+    <div class="card-panel">
+      <div class="section-header" style="margin-bottom:18px">
+        <div>
+          <h2>Xin chào, <span id="dashGreetingName" style="color:var(--primary)">Bạn</span> 👋</h2>
+          <p class="sub" style="margin-bottom:0">Theo dõi tiến độ đọc và thời hạn trả sách của bạn.</p>
+        </div>
+        <button class="btn btn-accent btn-sm" id="quickBorrowFromDash" type="button">➕ Mượn sách ngay</button>
+      </div>
+
+      <!-- Stats Grid -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon-wrapper stat-icon-primary">📚</div>
+          <div class="stat-content">
+            <div class="stat-val mono" id="statBorrowing">0</div>
+            <div class="stat-lbl">Sách đang mượn</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon-wrapper stat-icon-amber">⏰</div>
+          <div class="stat-content">
+            <div class="stat-val mono" id="statDueSoon">0</div>
+            <div class="stat-lbl">Sắp đến hạn</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon-wrapper stat-icon-emerald">✅</div>
+          <div class="stat-content">
+            <div class="stat-val mono" id="statReturned">0</div>
+            <div class="stat-lbl">Đã trả xong</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon-wrapper stat-icon-rose">📖</div>
+          <div class="stat-content">
+            <div class="stat-val mono" id="statTotalRead">0</div>
+            <div class="stat-lbl">Tổng lượt mượn</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Borrows Section with Progress Bars -->
+      <h3 style="margin-top:10px;margin-bottom:14px">Sách bạn đang mượn</h3>
+      <div id="myActiveBorrowsContainer"></div>
+    </div>
+  </section>
+
+  <!-- SEARCH SECTION -->
+  <section class="search-wrapper" id="searchSection">
+    <div class="search-box-card">
+      <span class="search-icon-big">🔍</span>
+      <input type="text" class="search-input-field" id="searchInput" placeholder="Bạn muốn tìm cuốn sách nào? (Tên sách, tác giả, mã sách...)">
+      <select class="search-filter-select" id="filterStatusSelect">
+        <option value="">Tất cả tình trạng</option>
+        <option value="available">🟢 Còn sách</option>
+        <option value="borrowed">🟠 Đang được mượn</option>
+      </select>
+      <button class="btn btn-primary" id="btnSearchAction" type="button">Tìm kiếm</button>
+    </div>
+  </section>
+
+  <!-- BOOK CATALOG GRID -->
+  <section class="catalog-section" id="catalog" style="margin-bottom:60px">
+    <div class="section-header">
+      <div>
+        <h2 id="catalogTitle">Kho sách thư viện</h2>
+        <p class="sub" style="margin-bottom:0" id="catalogSubtitle">Mỗi mã sách chỉ một bạn được mượn tại một thời điểm.</p>
+      </div>
+      <div id="catalogResultCount" class="mono" style="font-weight:700;color:var(--text-soft)">Đang tải...</div>
+    </div>
+
+    <!-- Books Grid -->
+    <div class="book-cards-grid" id="booksGrid"></div>
+    <div id="emptyCatalogState" style="display:none" class="empty-box">
+      <div class="empty-icon">📚</div>
+      <h4>Chưa có sách phù hợp</h4>
+      <p>Thử tìm kiếm với từ khóa khác hoặc bỏ bộ lọc thể loại.</p>
+      <button class="btn btn-primary btn-sm" id="btnResetSearch" style="margin-top:10px">Đặt lại bộ lọc</button>
+    </div>
+  </section>
+
+  <!-- USER BORROW HISTORY (if logged in) -->
+  <section id="borrowHistorySection" style="display:none;margin-bottom:60px">
+    <div class="card-panel">
+      <h2>Lịch sử mượn & trả sách</h2>
+      <p class="sub">Tất cả những cuốn sách bạn đã từng mượn từ thư viện lớp.</p>
+      <div class="table-responsive">
+        <table class="edu-table">
+          <thead>
+            <tr>
+              <th>Mã sách</th>
+              <th>Tên sách</th>
+              <th>Ngày mượn</th>
+              <th>Ngày trả</th>
+              <th>Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody"></tbody>
+        </table>
+      </div>
+      <p style="margin-top:14px;font-size:0.85rem;color:var(--text-soft)">
+        💡 <b>Mẹo:</b> Khi bạn đã trả sách thực tế cho giáo viên/thư viện, người phụ trách sẽ xác nhận cập nhật trạng thái "Đã trả".
+      </p>
+    </div>
+  </section>
+
+  <!-- GUIDE SECTION -->
+  <section class="card-panel" id="guide" style="margin-bottom:60px">
+    <h2>Hướng dẫn mượn & trả sách</h2>
+    <div class="form-row-two" style="margin-top:16px">
+      <div style="padding:16px;background:var(--surface-subtle);border-radius:var(--radius-lg)">
+        <h3 style="color:var(--primary)">1. Cách mượn sách</h3>
+        <p style="font-size:0.92rem;color:var(--text-soft)">
+          • Chọn cuốn sách có nhãn <span class="badge-status badge-available">🟢 Còn sách</span>.<br>
+          • Bấm nút <b>"Mượn sách"</b> và điền đầy đủ họ tên, lớp, số điện thoại, Gmail.<br>
+          • Tự chọn ngày trả phù hợp với tốc độ đọc của bạn.<br>
+          • Đăng ký tài khoản để quản lý các sách đang mượn trực quan nhất.
+        </p>
+      </div>
+      <div style="padding:16px;background:var(--surface-subtle);border-radius:var(--radius-lg)">
+        <h3 style="color:var(--accent-amber-text)">2. Trả sách & Thông báo</h3>
+        <p style="font-size:0.92rem;color:var(--text-soft)">
+          • Hệ thống sẽ tự động nhắc nhở khi sắp đến hạn qua Gmail hoặc SMS.<br>
+          • Khi đọc xong, mang sách gửi lại giáo viên/thư viện viên lớp.<br>
+          • Quản trị viên sẽ bấm xác nhận để ghi nhận lượt mượn đã hoàn tất.
+        </p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ==================== MODALS ==================== -->
+
+<!-- 1. LOGIN MODAL -->
+<dialog class="edu-dialog" id="loginModal">
+  <div class="dialog-header">
+    <b>Đăng nhập độc giả</b>
+    <button class="btn-close" type="button" data-close="loginModal">×</button>
+  </div>
+  <div class="dialog-body">
+    <p class="sub" style="margin-bottom:18px">Đăng nhập bằng Số điện thoại hoặc Gmail học sinh.</p>
+    <form id="modalLoginForm">
+      <div class="form-group">
+        <label class="form-label">Số điện thoại hoặc Gmail <span class="req">*</span></label>
+        <input type="text" class="form-control" name="dinh_danh" required placeholder="0912345678 hoặc tenban@gmail.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mật khẩu <span class="req">*</span></label>
+        <input type="password" class="form-control" name="password" required placeholder="Nhập mật khẩu">
+      </div>
+      <div id="modalLoginErr" class="form-error" style="margin-bottom:14px"></div>
+      <button class="btn btn-primary" type="submit" style="width:100%;padding:13px;font-size:1rem">Đăng nhập</button>
+      <div style="text-align:center;margin-top:16px;font-size:0.9rem">
+        Chưa có tài khoản? <a href="#" id="switchToRegister" style="color:var(--primary);font-weight:700">Đăng ký ngay</a>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<!-- 2. REGISTER MODAL (Includes LỚP) -->
+<dialog class="edu-dialog" id="registerModal">
+  <div class="dialog-header">
+    <b>Đăng ký tài khoản học sinh</b>
+    <button class="btn-close" type="button" data-close="registerModal">×</button>
+  </div>
+  <div class="dialog-body">
+    <p class="sub" style="margin-bottom:18px">Tạo tài khoản để theo dõi sách mượn và nhận thông báo hạn trả.</p>
+    <form id="modalRegisterForm" novalidate>
+      <div class="form-row-two">
+        <div class="form-group">
+          <label class="form-label">Họ và tên <span class="req">*</span></label>
+          <input type="text" class="form-control" name="name" required placeholder="Nguyễn Văn A">
+          <div class="form-error">Vui lòng nhập họ và tên.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Lớp <span class="req">*</span></label>
+          <input type="text" class="form-control" name="class_name" required placeholder="12A1, 11B2, 10C...">
+          <div class="form-error">Vui lòng nhập lớp học.</div>
+        </div>
+      </div>
+      <div class="form-row-two">
+        <div class="form-group">
+          <label class="form-label">Số điện thoại <span class="req">*</span></label>
+          <input type="tel" class="form-control" name="phone" required placeholder="0912345678">
+          <div class="form-error">Số điện thoại chưa hợp lệ.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Gmail <span class="req">*</span></label>
+          <input type="email" class="form-control" name="email" required placeholder="hocsinh@gmail.com">
+          <div class="form-error">Gmail chưa hợp lệ.</div>
+        </div>
+      </div>
+      <div class="form-row-two">
+        <div class="form-group">
+          <label class="form-label">Mật khẩu <span class="req">*</span></label>
+          <input type="password" class="form-control" name="password" required placeholder="Tối thiểu 6 ký tự">
+          <div class="form-error">Mật khẩu cần ít nhất 6 ký tự.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nhập lại mật khẩu <span class="req">*</span></label>
+          <input type="password" class="form-control" name="password2" required placeholder="Nhập lại mật khẩu">
+          <div class="form-error">Mật khẩu không khớp.</div>
+        </div>
+      </div>
+      <div id="modalRegErr" class="form-error" style="margin-bottom:14px"></div>
+      <button class="btn btn-primary" type="submit" style="width:100%;padding:13px;font-size:1rem">Tạo tài khoản</button>
+      <div style="text-align:center;margin-top:16px;font-size:0.9rem">
+        Đã có tài khoản? <a href="#" id="switchToLogin" style="color:var(--primary);font-weight:700">Đăng nhập</a>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<!-- 3. BOOK DETAIL MODAL -->
+<dialog class="edu-dialog" id="bookDetailModal">
+  <div class="dialog-header">
+    <b id="detailBookTitle">Chi tiết cuốn sách</b>
+    <button class="btn-close" type="button" data-close="bookDetailModal">×</button>
+  </div>
+  <div class="dialog-body" id="bookDetailContent"></div>
+  <div class="dialog-footer">
+    <button class="btn btn-secondary" type="button" data-close="bookDetailModal">Đóng</button>
+    <button class="btn btn-primary" id="btnDetailBorrowAction" type="button">📚 Mượn cuốn sách này</button>
+  </div>
+</dialog>
+
+<!-- 4. BORROW FORM MODAL (Includes LỚP) -->
+<dialog class="edu-dialog" id="borrowModal">
+  <div class="dialog-header">
+    <b>📚 Phiếu mượn sách</b>
+    <button class="btn-close" type="button" data-close="borrowModal">×</button>
+  </div>
+  <div class="dialog-body" id="borrowModalBody">
+    <p class="sub" style="margin-bottom:18px">Ngày trả do bạn tự quyết định theo kế hoạch cá nhân.</p>
+    <form id="borrowModalForm" novalidate>
+      <div class="form-row-two">
+        <div class="form-group">
+          <label class="form-label">Họ và tên <span class="req">*</span></label>
+          <input type="text" class="form-control" name="name" required placeholder="Nguyễn Văn A">
+          <div class="form-error">Vui lòng nhập họ và tên.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Lớp <span class="req">*</span></label>
+          <input type="text" class="form-control" name="class_name" required placeholder="12A1, 11B2, 10C...">
+          <div class="form-error">Vui lòng nhập lớp học.</div>
+        </div>
+      </div>
+      <div class="form-row-two">
+        <div class="form-group">
+          <label class="form-label">Số điện thoại <span class="req">*</span></label>
+          <input type="tel" class="form-control" name="phone" required placeholder="0912345678">
+          <div class="form-error">Số điện thoại chưa đúng.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Gmail <span class="req">*</span></label>
+          <input type="email" class="form-control" name="email" required placeholder="hocsinh@gmail.com">
+          <div class="form-error">Gmail chưa hợp lệ.</div>
+        </div>
+      </div>
+      <div class="form-row-two">
+        <div class="form-group">
+          <label class="form-label">Mã sách <span class="req">*</span></label>
+          <input type="text" class="form-control" name="book_code" list="freeBooksList" required placeholder="TV001">
+          <datalist id="freeBooksList"></datalist>
+          <div class="form-error" id="codeErr">Hãy chọn mã sách hợp lệ.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tên sách</label>
+          <input type="text" class="form-control" name="book_name" placeholder="Tên cuốn sách">
+        </div>
+      </div>
+      <div class="form-row-two">
+        <div class="form-group">
+          <label class="form-label">Ngày mượn <span class="req">*</span></label>
+          <input type="date" class="form-control" name="borrow_date" required>
+          <div class="form-error">Chọn ngày mượn.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ngày trả (Tự chọn) <span class="req">*</span></label>
+          <input type="date" class="form-control" name="due_date" required>
+          <div class="form-error" id="dueErr">Chọn ngày trả hợp lệ.</div>
+        </div>
+      </div>
+      <div id="borrowFormErr" class="form-error" style="margin-bottom:14px"></div>
+      <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:10px">
+        <button class="btn btn-secondary" type="button" data-close="borrowModal">Hủy</button>
+        <button class="btn btn-primary" type="submit">Xác nhận mượn sách</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<!-- Toast Notification -->
 <div id="toast"></div>
-<dialog id="dlg"><form method="dialog" id="dlgForm">
-  <div class="dlg-h"><b id="dlgTitle">…</b><button class="x" value="cancel" type="submit" aria-label="Đóng">×</button></div>
-  <div class="dlg-b" id="dlgBody"></div>
-  <div class="dlg-f" id="dlgFoot"></div>
-</form></dialog>
 
 <script>
 (function(){
 "use strict";
-var $=function(s,r){return (r||document).querySelector(s)};
-var esc=function(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){
-  return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]})};
-function pad(n){return n<10?"0"+n:""+n}
-function todayISO(){var d=new Date();return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())}
-function viDate(iso){if(!iso)return "—";var p=String(iso).split("-");return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:iso}
-function dayDiff(a,b){return Math.round((new Date(b+"T00:00:00")-new Date(a+"T00:00:00"))/86400000)}
-function toast(m,bad){var t=document.createElement("div");t.className="toast"+(bad?" bad":"");t.textContent=m;
-  $("#toast").appendChild(t);setTimeout(function(){t.remove()},3600)}
 
-var TODAY=todayISO(); var TOKEN=""; try{TOKEN=sessionStorage.getItem("tv-hs-token")||""}catch(e){}
-var NAME=""; try{NAME=sessionStorage.getItem("tv-hs-name")||""}catch(e){}
-var books=[], mine=[];
+var $ = function(sel, root){ return (root || document).querySelector(sel); };
+var $$ = function(sel, root){ return Array.from((root || document).querySelectorAll(sel)); };
+var esc = function(s){ return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c];
+}); };
+function pad(n){ return n < 10 ? "0" + n : "" + n; }
+function todayISO(){ var d = new Date(); return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+function viDate(iso){ if(!iso) return "—"; var p = String(iso).split("-"); return p.length === 3 ? p[2] + "/" + p[1] + "/" + p[0] : iso; }
+function dayDiff(a, b){ return Math.round((new Date(b + "T00:00:00") - new Date(a + "T00:00:00")) / 86400000); }
 
-async function api(path,opts){
-  opts=opts||{};
-  var res=await fetch("/api"+path,{method:opts.method||"GET",
-    headers:Object.assign({"Content-Type":"application/json"},TOKEN?{Authorization:"Bearer "+TOKEN}:{}),
-    body:opts.body?JSON.stringify(opts.body):undefined});
-  if(res.status===401 && opts.auth!==false){ signOut(); throw new Error("Phiên đăng nhập đã hết hạn, hãy đăng nhập lại.") }
-  var data=await res.json().catch(function(){return {}});
-  if(!res.ok) throw new Error(data.error||"Máy chủ trả về lỗi "+res.status);
+function toast(msg, isBad){
+  var t = document.createElement("div");
+  t.className = "toast-msg" + (isBad ? " bad" : "");
+  t.innerHTML = (isBad ? "⚠️ " : "✅ ") + esc(msg);
+  $("#toast").appendChild(t);
+  setTimeout(function(){ t.remove(); }, 3800);
+}
+
+var TODAY = todayISO();
+var TOKEN = ""; try { TOKEN = sessionStorage.getItem("tv-hs-token") || ""; } catch(e){}
+var USER_DATA = null; try { USER_DATA = JSON.parse(sessionStorage.getItem("tv-hs-user") || "null"); } catch(e){}
+
+var allBooks = [];
+var myBorrowsList = [];
+var selectedCategory = "";
+
+/* API Caller */
+async function api(path, opts){
+  opts = opts || {};
+  var headers = Object.assign({"Content-Type": "application/json"}, TOKEN ? {Authorization: "Bearer " + TOKEN} : {});
+  var res = await fetch("/api" + path, {
+    method: opts.method || "GET",
+    headers: headers,
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  if(res.status === 401 && opts.auth !== false){
+    logout();
+    throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+  }
+  var data = await res.json().catch(function(){ return {}; });
+  if(!res.ok) throw new Error(data.error || "Máy chủ trả về lỗi " + res.status);
   return data;
 }
-function showMember(){ $("#guest").classList.add("hide"); $("#member").classList.remove("hide"); $("#hiName").textContent="Xin chào, "+NAME; $("#today").textContent=viDate(TODAY) }
-function showGuest(){ $("#guest").classList.remove("hide"); $("#member").classList.add("hide") }
-function signOut(){ TOKEN=""; NAME=""; try{sessionStorage.removeItem("tv-hs-token");sessionStorage.removeItem("tv-hs-name")}catch(e){} showGuest() }
-$("#logout").addEventListener("click",signOut);
 
-$("#tabLogin").addEventListener("click",function(){ $("#tabLogin").classList.add("on"); $("#tabRegister").classList.remove("on");
-  $("#loginBox").classList.remove("hide"); $("#registerBox").classList.add("hide") });
-$("#tabRegister").addEventListener("click",function(){ $("#tabRegister").classList.add("on"); $("#tabLogin").classList.remove("on");
-  $("#registerBox").classList.remove("hide"); $("#loginBox").classList.add("hide") });
-
-$("#loginForm").addEventListener("submit",async function(e){
-  e.preventDefault();
-  var f=e.target;
-  try{
-    var d=await api("/dang-nhap-doc-gia",{method:"POST",auth:false,body:{dinh_danh:f.dinh_danh.value.trim(),password:f.password.value}});
-    TOKEN=d.token; NAME=d.name; try{sessionStorage.setItem("tv-hs-token",TOKEN);sessionStorage.setItem("tv-hs-name",NAME)}catch(err){}
-    $("#loginErr").style.display="none"; f.reset(); showMember(); loadAll();
-  }catch(err){ $("#loginErr").textContent=err.message; $("#loginErr").style.display="block" }
+/* Modals Management */
+function openModal(id){
+  var modal = document.getElementById(id);
+  if(modal && modal.showModal) modal.showModal();
+}
+function closeModal(id){
+  var modal = document.getElementById(id);
+  if(modal && modal.close) modal.close();
+}
+$$("[data-close]").forEach(function(btn){
+  btn.addEventListener("click", function(){ closeModal(btn.dataset.close); });
 });
 
-var isPhone=function(p){var d=String(p).replace(/[^\d]/g,"");return /^(0|\+?84)\d{8,10}$/.test(String(p).replace(/[\s.-]/g,""))&&d.length>=9&&d.length<=11};
-var isMail=function(m){return /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(String(m))};
-$("#registerForm").addEventListener("submit",async function(e){
-  e.preventDefault();
-  var f=e.target,bad=false;
-  function mark(n,ok){var l=f.elements[n].closest("label.f");l.classList.toggle("bad",!ok);if(!ok)bad=true}
-  var v={name:f.name.value.trim(),phone:f.phone.value.trim(),email:f.email.value.trim(),password:f.password.value,password2:f.password2.value};
-  mark("name",v.name.length>=2); mark("phone",isPhone(v.phone)); mark("email",isMail(v.email));
-  mark("password",v.password.length>=6); mark("password2",v.password2===v.password && v.password.length>=6);
-  if(bad){ toast("Còn ô chưa hợp lệ, hãy kiểm tra lại.",true); return }
-  try{
-    var d=await api("/dang-ky",{method:"POST",auth:false,body:{name:v.name,phone:v.phone,email:v.email,password:v.password}});
-    TOKEN=d.token; NAME=d.name; try{sessionStorage.setItem("tv-hs-token",TOKEN);sessionStorage.setItem("tv-hs-name",NAME)}catch(err){}
-    $("#regErr").style.display="none"; toast("Đã tạo tài khoản. Chào mừng "+NAME+"!"); f.reset(); showMember(); loadAll();
-  }catch(err){ $("#regErr").textContent=err.message; $("#regErr").style.display="block" }
+/* Theme Toggle */
+function initTheme(){
+  var current = localStorage.getItem("tv-theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  document.documentElement.setAttribute("data-theme", current);
+  $("#themeIcon").textContent = current === "dark" ? "☀️" : "🌙";
+}
+$("#themeBtn").addEventListener("click", function(){
+  var current = document.documentElement.getAttribute("data-theme");
+  var next = current === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  localStorage.setItem("tv-theme", next);
+  $("#themeIcon").textContent = next === "dark" ? "☀️" : "🌙";
 });
+initTheme();
 
-/* ---------- Sau khi dang nhap ---------- */
-var LABEL={borrowing:{l:"Đang mượn",c:"t-active",i:"🟢"},due_soon:{l:"Sắp đến hạn",c:"t-soon",i:"🟡"},
-  due_today:{l:"Đến hạn trả hôm nay",c:"t-today",i:"🔴"},overdue:{l:"Quá hạn",c:"t-late",i:"⚠️"},
-  returned:{l:"Đã trả",c:"t-done",i:"🔵"}};
-function st(r){
-  var k=r.trang_thai||(r.status==="returned"?"returned":"borrowing");
-  var o=LABEL[k]||LABEL.borrowing, lab=o.l;
-  if(k==="overdue") lab="Quá hạn "+Math.abs(dayDiff(TODAY,r.due_date))+" ngày";
-  if(k==="due_soon") lab="Sắp đến hạn ("+dayDiff(TODAY,r.due_date)+" ngày)";
-  return {k:k,label:lab,cls:o.c,icon:o.i};
-}
-function bookBusy(code){ return books.some(function(b){return b.book_code===code && b.status==="borrowed"}) }
-
-async function loadAll(){
-  try{
-    var r=await Promise.all([api("/sach-cong-khai",{auth:false}),api("/toi/luot-muon")]);
-    books=r[0]; mine=r[1];
-    renderMine(); renderFree(); fillFree();
-  }catch(e){ toast(e.message,true) }
-}
-function renderMine(){
-  if(!mine.length){ $("#myList").innerHTML='<div class="empty"><b>Bạn chưa mượn cuốn nào.</b>Dùng biểu mẫu bên trên để mượn cuốn đầu tiên.</div>'; return }
-  $("#myList").innerHTML='<div class="tw"><table><thead><tr><th>Mã sách</th><th>Tên sách</th><th>Ngày mượn</th><th>Ngày trả</th><th>Trạng thái</th></tr></thead><tbody>'+
-    mine.map(function(r){var s=st(r);
-      return '<tr><td class="code">'+esc(r.book_code)+'</td><td>'+esc(r.book_name||"—")+'</td>'+
-      '<td class="mono">'+viDate(r.borrow_date)+'</td><td class="mono">'+viDate(r.due_date)+'</td>'+
-      '<td><span class="tag '+s.cls+'">'+s.icon+' '+esc(s.label)+'</span></td></tr>'}).join("")+
-    '</tbody></table></div><p class="muted" style="margin-top:10px;font-size:13px">Đã trả sách rồi? Báo với thầy cô phụ trách để xác nhận trên hệ thống.</p>';
-}
-function renderFree(){
-  var free=books.filter(function(b){return b.status!=="borrowed"});
-  if(!free.length){ $("#freeList").innerHTML='<div class="empty"><b>Hiện chưa có sách nào sẵn sàng.</b></div>'; return }
-  $("#freeList").innerHTML='<div class="tw"><table><thead><tr><th>Mã sách</th><th>Tên sách</th><th>Tác giả</th><th>Thể loại</th></tr></thead><tbody>'+
-    free.map(function(b){return '<tr><td class="code">'+esc(b.book_code)+'</td><td>'+esc(b.book_name||"—")+'</td><td>'+esc(b.author||"—")+'</td><td>'+esc(b.category||"—")+'</td></tr>'}).join("")+
-    '</tbody></table></div>';
-}
-function fillFree(){
-  $("#freeBooks").innerHTML=books.filter(function(b){return b.status!=="borrowed"})
-    .map(function(b){return '<option value="'+esc(b.book_code)+'">'+esc(b.book_name||"")+'</option>'}).join("");
+/* Auth State UI */
+function renderAuthState(){
+  if(TOKEN && USER_DATA){
+    $("#guestControls").style.display = "none";
+    $("#memberControls").style.display = "flex";
+    $("#userNameLabel").textContent = USER_DATA.name || "Học sinh";
+    $("#userClassLabel").textContent = USER_DATA.class_name ? "Lớp " + USER_DATA.class_name : "Học sinh";
+    $("#avatarLetter").textContent = (USER_DATA.name || "A").charAt(0).toUpperCase();
+    $("#dashboardSection").style.display = "block";
+    $("#borrowHistorySection").style.display = "block";
+    $("#dashGreetingName").textContent = USER_DATA.name;
+  } else {
+    $("#guestControls").style.display = "flex";
+    $("#memberControls").style.display = "none";
+    $("#dashboardSection").style.display = "none";
+    $("#borrowHistorySection").style.display = "none";
+  }
 }
 
-var bf=$("#borrowForm"); bf.elements.borrow_date.value=TODAY;
-bf.addEventListener("submit",async function(e){
+function logout(){
+  TOKEN = "";
+  USER_DATA = null;
+  try {
+    sessionStorage.removeItem("tv-hs-token");
+    sessionStorage.removeItem("tv-hs-user");
+  } catch(e){}
+  renderAuthState();
+  toast("Đã đăng xuất tài khoản.");
+  loadAll();
+}
+$("#btnLogout").addEventListener("click", logout);
+
+/* Login Dialog */
+$("#btnOpenLogin").addEventListener("click", function(){ openModal("loginModal"); });
+$("#switchToLogin").addEventListener("click", function(e){
+  e.preventDefault(); closeModal("registerModal"); openModal("loginModal");
+});
+$("#switchToRegister").addEventListener("click", function(e){
+  e.preventDefault(); closeModal("loginModal"); openModal("registerModal");
+});
+$("#btnOpenRegister").addEventListener("click", function(){ openModal("registerModal"); });
+
+$("#modalLoginForm").addEventListener("submit", async function(e){
   e.preventDefault();
-  var f=e.target,bad=false;
-  function mark(n,ok,msg){var l=f.elements[n].closest("label.f");l.classList.toggle("bad",!ok);
-    if(!ok){bad=true;var m=l.querySelector("[data-msg]");if(m&&msg)m.textContent=msg}}
-  var v={book_code:f.book_code.value.trim().toUpperCase(),book_name:f.book_name.value.trim(),
-    borrow_date:f.borrow_date.value,due_date:f.due_date.value};
-  if(!v.book_code)mark("book_code",false,"Hãy nhập mã sách.");
-  else if(bookBusy(v.book_code))mark("book_code",false,"Mã "+v.book_code+" đang có người mượn.");
-  else mark("book_code",true);
-  mark("borrow_date",!!v.borrow_date);
-  if(!v.due_date)mark("due_date",false,"Hãy chọn ngày trả.");
-  else if(v.borrow_date&&dayDiff(v.borrow_date,v.due_date)<0)mark("due_date",false,"Ngày trả không được trước ngày mượn.");
-  else mark("due_date",true);
-  if(bad){ toast("Còn ô chưa hợp lệ, hãy kiểm tra lại.",true); return }
-  try{
-    await api("/toi/muon",{method:"POST",body:v});
-    toast("Đã ghi nhận bạn mượn "+v.book_code+", hạn trả "+viDate(v.due_date)+".");
-    f.reset(); f.elements.borrow_date.value=TODAY;
-    Array.prototype.forEach.call(f.querySelectorAll("label.f"),function(l){l.classList.remove("bad")});
+  var f = e.target;
+  $("#modalLoginErr").style.display = "none";
+  try {
+    var res = await api("/dang-nhap-doc-gia", {
+      method: "POST", auth: false,
+      body: { dinh_danh: f.dinh_danh.value.trim(), password: f.password.value }
+    });
+    TOKEN = res.token;
+    // Get full user details
+    var userProfile = await api("/toi");
+    USER_DATA = userProfile;
+    sessionStorage.setItem("tv-hs-token", TOKEN);
+    sessionStorage.setItem("tv-hs-user", JSON.stringify(USER_DATA));
+    f.reset();
+    closeModal("loginModal");
+    toast("Chào mừng bạn trở lại, " + USER_DATA.name + "!");
+    renderAuthState();
     loadAll();
-  }catch(err){ toast(err.message,true) }
+  } catch(err){
+    $("#modalLoginErr").textContent = err.message;
+    $("#modalLoginErr").style.display = "block";
+  }
 });
 
-/* ---------- Giao dien ---------- */
-function theme(){
-  var c=document.documentElement.getAttribute("data-theme");
-  var n=c==="dark"?"light":(c==="light"?"dark":(matchMedia("(prefers-color-scheme: dark)").matches?"light":"dark"));
-  document.documentElement.setAttribute("data-theme",n);
-  try{localStorage.setItem("tv-theme",n)}catch(e){}
-}
-$("#themeBtn").addEventListener("click",theme);
-try{var t=localStorage.getItem("tv-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}
+/* Validation Helpers */
+var isPhone = function(p){ var d = String(p).replace(/[^\d]/g, ""); return /^(0|\+?84)\d{8,10}$/.test(String(p).replace(/[\s.-]/g, "")) && d.length >= 9 && d.length <= 11; };
+var isMail = function(m){ return /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(String(m)); };
 
-if(TOKEN && NAME){ showMember(); loadAll() } else { showGuest() }
+/* Register Dialog */
+$("#modalRegisterForm").addEventListener("submit", async function(e){
+  e.preventDefault();
+  var f = e.target, bad = false;
+  function mark(name, ok){
+    var group = f.elements[name].closest(".form-group");
+    group.classList.toggle("has-error", !ok);
+    if(!ok) bad = true;
+  }
+  var v = {
+    name: f.name.value.trim(),
+    class_name: f.class_name.value.trim(),
+    phone: f.phone.value.trim(),
+    email: f.email.value.trim(),
+    password: f.password.value,
+    password2: f.password2.value
+  };
+  mark("name", v.name.length >= 2);
+  mark("class_name", v.class_name.length >= 1);
+  mark("phone", isPhone(v.phone));
+  mark("email", isMail(v.email));
+  mark("password", v.password.length >= 6);
+  mark("password2", v.password2 === v.password && v.password.length >= 6);
+
+  if(bad) return;
+  $("#modalRegErr").style.display = "none";
+
+  try {
+    var regRes = await api("/dang-ky", {
+      method: "POST", auth: false,
+      body: v
+    });
+    TOKEN = regRes.token;
+    var userProfile = await api("/toi");
+    USER_DATA = userProfile;
+    sessionStorage.setItem("tv-hs-token", TOKEN);
+    sessionStorage.setItem("tv-hs-user", JSON.stringify(USER_DATA));
+    f.reset();
+    closeModal("registerModal");
+    toast("Tạo tài khoản thành công. Chào mừng bạn, " + USER_DATA.name + "!");
+    renderAuthState();
+    loadAll();
+  } catch(err){
+    $("#modalRegErr").textContent = err.message;
+    $("#modalRegErr").style.display = "block";
+  }
+});
+
+/* Category Theme Mapping */
+function getCatTheme(cat){
+  var c = String(cat || "").toLowerCase();
+  if(c.includes("văn") || c.includes("truyện") || c.includes("tiểu thuyết")) return "theme-lit";
+  if(c.includes("khoa học") || c.includes("sinh") || c.includes("hóa")) return "theme-sci";
+  if(c.includes("toán")) return "theme-math";
+  if(c.includes("lịch sử") || c.includes("sử")) return "theme-hist";
+  if(c.includes("tin") || c.includes("công nghệ")) return "theme-tech";
+  if(c.includes("nghệ thuật") || c.includes("họa") || c.includes("nhạc")) return "theme-art";
+  return "";
+}
+
+function getCatIcon(cat){
+  var c = String(cat || "").toLowerCase();
+  if(c.includes("văn") || c.includes("truyện")) return "📚";
+  if(c.includes("khoa học")) return "🔬";
+  if(c.includes("toán")) return "🧮";
+  if(c.includes("địa lý") || c.includes("địa")) return "🌍";
+  if(c.includes("lịch sử") || c.includes("sử")) return "🏛";
+  if(c.includes("tin")) return "💻";
+  if(c.includes("nghệ thuật")) return "🎨";
+  if(c.includes("ngoại ngữ") || c.includes("anh")) return "📖";
+  return "📘";
+}
+
+/* Load All Data */
+async function loadAll(){
+  try {
+    var promises = [api("/sach-cong-khai", {auth: false})];
+    if(TOKEN) promises.push(api("/toi/luot-muon"));
+    var res = await Promise.all(promises);
+    allBooks = res[0] || [];
+    myBorrowsList = res[1] || [];
+
+    updateCounts();
+    renderBooksGrid();
+    fillFreeBooksDatalist();
+
+    if(TOKEN){
+      renderDashboard();
+      renderHistoryTable();
+    }
+  } catch(e){
+    toast(e.message, true);
+  }
+}
+
+/* Book Counts */
+function updateCounts(){
+  var heroCount = $("#heroBooksCount");
+  if(heroCount) heroCount.textContent = allBooks.length + " cuốn sách";
+}
+
+function fillFreeBooksDatalist(){
+  var list = $("#freeBooksList");
+  list.innerHTML = allBooks
+    .filter(function(b){ return b.status !== "borrowed"; })
+    .map(function(b){ return '<option value="' + esc(b.book_code) + '">' + esc(b.book_name || "") + '</option>'; })
+    .join("");
+}
+
+/* Render Books Grid */
+function renderBooksGrid(){
+  var query = ($("#searchInput").value || "").trim().toLowerCase();
+  var filterStatus = $("#filterStatusSelect").value;
+
+  var filtered = allBooks.filter(function(b){
+    if(filterStatus === "available" && b.status === "borrowed") return false;
+    if(filterStatus === "borrowed" && b.status !== "borrowed") return false;
+    if(!query) return true;
+    var searchStr = [b.book_code, b.book_name, b.author, b.category].join(" ").toLowerCase();
+    return searchStr.includes(query);
+  });
+
+  $("#catalogResultCount").textContent = filtered.length + " kết quả";
+
+  if(!filtered.length){
+    $("#booksGrid").innerHTML = "";
+    $("#emptyCatalogState").style.display = "block";
+    return;
+  }
+  $("#emptyCatalogState").style.display = "none";
+
+  $("#booksGrid").innerHTML = filtered.map(function(b){
+    var isBorrowed = b.status === "borrowed";
+    var themeClass = getCatTheme(b.category);
+    var icon = getCatIcon(b.category);
+
+    return '<div class="book-card">' +
+      '<div class="book-cover ' + themeClass + '">' +
+        '<div class="book-cover-pattern"></div>' +
+        '<div class="book-code-pill">' + esc(b.book_code) + '</div>' +
+        '<div class="book-cover-icon">' + icon + '</div>' +
+      '</div>' +
+      '<div class="book-card-body">' +
+        '<div class="book-category-tag">' + esc(b.category || "Tài liệu học tập") + '</div>' +
+        '<div class="book-title" title="' + esc(b.book_name || b.book_code) + '">' + esc(b.book_name || b.book_code) + '</div>' +
+        '<div class="book-author">Tác giả: ' + esc(b.author || "Đang cập nhật") + '</div>' +
+        '<div class="book-card-footer">' +
+          '<span class="badge-status ' + (isBorrowed ? "badge-borrowed" : "badge-available") + '">' +
+            (isBorrowed ? "🟠 Đang được mượn" : "🟢 Còn sách") +
+          '</span>' +
+          '<div style="display:flex;gap:6px">' +
+            '<button class="btn btn-secondary btn-sm" type="button" onclick="window.viewBookDetail(\'' + esc(b.book_code) + '\')">Chi tiết</button>' +
+            (!isBorrowed ? '<button class="btn btn-primary btn-sm" type="button" onclick="window.openBorrowForBook(\'' + esc(b.book_code) + '\',\'' + esc(b.book_name || "") + '\')">Mượn sách</button>' : '') +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+}
+
+$("#searchInput").addEventListener("input", renderBooksGrid);
+$("#filterStatusSelect").addEventListener("change", renderBooksGrid);
+$("#btnSearchAction").addEventListener("click", renderBooksGrid);
+$("#btnResetSearch").addEventListener("click", function(){
+  $("#searchInput").value = "";
+  $("#filterStatusSelect").value = "";
+  renderBooksGrid();
+});
+
+/* View Book Detail Modal */
+window.viewBookDetail = function(code){
+  var b = allBooks.find(function(item){ return item.book_code === code; });
+  if(!b) return;
+  var isBorrowed = b.status === "borrowed";
+  var themeClass = getCatTheme(b.category);
+  var icon = getCatIcon(b.category);
+
+  $("#detailBookTitle").textContent = b.book_name || b.book_code;
+  $("#bookDetailContent").innerHTML =
+    '<div style="display:flex;gap:22px;flex-wrap:wrap;align-items:center;margin-bottom:20px">' +
+      '<div class="book-cover ' + themeClass + '" style="width:140px;height:180px;border-radius:var(--radius-lg);box-shadow:var(--shadow-md)">' +
+        '<div class="book-cover-pattern"></div>' +
+        '<div class="book-cover-icon" style="font-size:3.5rem">' + icon + '</div>' +
+      '</div>' +
+      '<div style="flex:1;min-width:200px">' +
+        '<div class="book-category-tag">' + esc(b.category || "Học tập") + '</div>' +
+        '<h2 style="margin-bottom:8px;font-size:1.35rem">' + esc(b.book_name || b.book_code) + '</h2>' +
+        '<div style="margin-bottom:6px"><b>Tác giả:</b> ' + esc(b.author || "Đang cập nhật") + '</div>' +
+        '<div style="margin-bottom:8px"><b>Mã sách:</b> <span class="code" style="color:var(--primary)">' + esc(b.book_code) + '</span></div>' +
+        '<div><b>Tình trạng:</b> ' +
+          '<span class="badge-status ' + (isBorrowed ? "badge-borrowed" : "badge-available") + '">' +
+            (isBorrowed ? "🟠 Đang có bạn mượn" : "🟢 Có sẵn trong kho sách") +
+          '</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="background:var(--surface-subtle);padding:14px 18px;border-radius:var(--radius-md);font-size:0.92rem;color:var(--text-soft)">' +
+      'Cuốn sách này thuộc kho tài liệu học tập của thư viện lớp. Khi mượn, bạn có thể tự chọn thời hạn trả phù hợp.' +
+    '</div>';
+
+  var borrowBtn = $("#btnDetailBorrowAction");
+  if(isBorrowed){
+    borrowBtn.disabled = true;
+    borrowBtn.textContent = "Sách đang có người mượn";
+  } else {
+    borrowBtn.disabled = false;
+    borrowBtn.textContent = "📚 Mượn cuốn sách này";
+    borrowBtn.onclick = function(){
+      closeModal("bookDetailModal");
+      window.openBorrowForBook(b.book_code, b.book_name || "");
+    };
+  }
+  openModal("bookDetailModal");
+};
+
+/* Open Borrow Form Modal */
+window.openBorrowForBook = function(bookCode, bookName){
+  var form = $("#borrowModalForm");
+  form.reset();
+  form.elements.borrow_date.value = TODAY;
+  if(bookCode) form.elements.book_code.value = bookCode;
+  if(bookName) form.elements.book_name.value = bookName;
+
+  // Auto fill if user logged in
+  if(USER_DATA){
+    if(USER_DATA.name) form.elements.name.value = USER_DATA.name;
+    if(USER_DATA.class_name) form.elements.class_name.value = USER_DATA.class_name;
+    if(USER_DATA.phone) form.elements.phone.value = USER_DATA.phone;
+    if(USER_DATA.email) form.elements.email.value = USER_DATA.email;
+  }
+  $("#borrowFormErr").style.display = "none";
+  openModal("borrowModal");
+};
+
+$("#navBorrowBtn").addEventListener("click", function(){ window.openBorrowForBook(); });
+$("#quickBorrowFromDash").addEventListener("click", function(){ window.openBorrowForBook(); });
+
+/* Submit Borrow Form */
+$("#borrowModalForm").addEventListener("submit", async function(e){
+  e.preventDefault();
+  var f = e.target, bad = false;
+  function mark(name, ok, msg){
+    var group = f.elements[name].closest(".form-group");
+    group.classList.toggle("has-error", !ok);
+    if(!ok){
+      bad = true;
+      var errEl = group.querySelector(".form-error");
+      if(errEl && msg) errEl.textContent = msg;
+    }
+  }
+
+  var code = f.book_code.value.trim().toUpperCase();
+  var isBusy = allBooks.some(function(b){ return b.book_code === code && b.status === "borrowed"; });
+
+  var v = {
+    name: f.name.value.trim(),
+    class_name: f.class_name.value.trim(),
+    phone: f.phone.value.trim(),
+    email: f.email.value.trim(),
+    book_code: code,
+    book_name: f.book_name.value.trim(),
+    borrow_date: f.borrow_date.value,
+    due_date: f.due_date.value
+  };
+
+  mark("name", v.name.length >= 2, "Vui lòng nhập họ và tên.");
+  mark("class_name", v.class_name.length >= 1, "Vui lòng nhập lớp học.");
+  mark("phone", isPhone(v.phone), "Số điện thoại chưa hợp lệ.");
+  mark("email", isMail(v.email), "Gmail chưa hợp lệ.");
+  mark("borrow_date", !!v.borrow_date, "Vui lòng chọn ngày mượn.");
+
+  if(!v.book_code) mark("book_code", false, "Hãy nhập mã sách.");
+  else if(isBusy) mark("book_code", false, "Mã " + v.book_code + " đang có bạn khác mượn.");
+  else mark("book_code", true);
+
+  if(!v.due_date) mark("due_date", false, "Hãy chọn ngày trả.");
+  else if(v.borrow_date && dayDiff(v.borrow_date, v.due_date) < 0) mark("due_date", false, "Ngày trả không được trước ngày mượn.");
+  else mark("due_date", true);
+
+  if(bad) return;
+  $("#borrowFormErr").style.display = "none";
+
+  try {
+    if(TOKEN){
+      await api("/toi/muon", { method: "POST", body: v });
+    } else {
+      await api("/muon", { method: "POST", auth: false, body: v });
+    }
+    // Show Success Confirmation View
+    $("#borrowModalBody").innerHTML =
+      '<div class="success-card">' +
+        '<div class="success-icon-badge">✅</div>' +
+        '<h2>Đã gửi yêu cầu mượn sách thành công!</h2>' +
+        '<p class="sub">Bạn đã mượn cuốn <b>' + esc(v.book_name || v.book_code) + '</b> (Mã: ' + esc(v.book_code) + ').</p>' +
+        '<div style="background:var(--surface-subtle);padding:14px;border-radius:var(--radius-lg);margin:20px 0;text-align:left">' +
+          '<div><b>Người mượn:</b> ' + esc(v.name) + ' - Lớp ' + esc(v.class_name) + '</div>' +
+          '<div><b>Ngày mượn:</b> ' + viDate(v.borrow_date) + '</div>' +
+          '<div><b>Hạn trả:</b> <b style="color:var(--primary)">' + viDate(v.due_date) + '</b></div>' +
+        '</div>' +
+        '<button class="btn btn-primary" type="button" data-close="borrowModal" style="width:100%">Đồng ý & Hoàn tất</button>' +
+      '</div>';
+    
+    toast("Đã ghi nhận mượn sách: " + v.book_code + " (Hạn trả: " + viDate(v.due_date) + ")");
+    loadAll();
+  } catch(err){
+    $("#borrowFormErr").textContent = err.message;
+    $("#borrowFormErr").style.display = "block";
+  }
+});
+
+/* Dashboard Rendering */
+function renderDashboard(){
+  var active = myBorrowsList.filter(function(r){ return r.status !== "returned"; });
+  var returned = myBorrowsList.filter(function(r){ return r.status === "returned"; });
+  var soon = active.filter(function(r){
+    var diff = dayDiff(TODAY, r.due_date);
+    return diff <= 3 && diff >= 0;
+  });
+
+  $("#statBorrowing").textContent = active.length;
+  $("#statDueSoon").textContent = soon.length;
+  $("#statReturned").textContent = returned.length;
+  $("#statTotalRead").textContent = myBorrowsList.length;
+
+  var container = $("#myActiveBorrowsContainer");
+  if(!active.length){
+    container.innerHTML = '<div style="background:var(--surface-subtle);border-radius:var(--radius-lg);padding:24px;text-align:center;color:var(--text-soft)">' +
+      '<b>Bạn đang không giữ cuốn sách nào.</b> Khám phá kho sách bên dưới để mượn cuốn tiếp theo nhé!' +
+    '</div>';
+    return;
+  }
+
+  container.innerHTML = active.map(function(r){
+    var totalDays = Math.max(1, dayDiff(r.borrow_date, r.due_date));
+    var passedDays = Math.max(0, dayDiff(r.borrow_date, TODAY));
+    var percent = Math.min(100, Math.round((passedDays / totalDays) * 100));
+    var daysLeft = dayDiff(TODAY, r.due_date);
+
+    var statusBadgeClass = "badge-available";
+    var statusText = "🟢 Còn " + daysLeft + " ngày";
+    var barClass = "";
+
+    if(daysLeft < 0){
+      statusBadgeClass = "badge-overdue";
+      statusText = "🔴 Quá hạn " + Math.abs(daysLeft) + " ngày";
+      barClass = "danger";
+    } else if(daysLeft <= 3){
+      statusBadgeClass = "badge-borrowed";
+      statusText = "🟠 Sắp đến hạn (" + daysLeft + " ngày)";
+      barClass = "warning";
+    }
+
+    return '<div class="borrow-item-card">' +
+      '<div class="borrow-header">' +
+        '<div>' +
+          '<b style="font-size:1.05rem">' + esc(r.book_name || r.book_code) + '</b>' +
+          '<div style="font-size:0.85rem;color:var(--text-soft)">Mã sách: <span class="code">' + esc(r.book_code) + '</span></div>' +
+        '</div>' +
+        '<span class="badge-status ' + statusBadgeClass + '">' + statusText + '</span>' +
+      '</div>' +
+      '<div class="progress-bar-track">' +
+        '<div class="progress-bar-fill ' + barClass + '" style="width:' + percent + '%"></div>' +
+      '</div>' +
+      '<div class="timeline-labels">' +
+        '<span>Mượn: <b>' + viDate(r.borrow_date) + '</b></span>' +
+        '<span>Tiến độ: ' + percent + '%</span>' +
+        '<span>Hạn trả: <b>' + viDate(r.due_date) + '</b></span>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+}
+
+/* History Table */
+function renderHistoryTable(){
+  var tbody = $("#historyTableBody");
+  if(!myBorrowsList.length){
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-soft)">Chưa có lịch sử mượn sách.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = myBorrowsList.map(function(r){
+    var isDone = r.status === "returned";
+    var daysLeft = dayDiff(TODAY, r.due_date);
+    var statusHtml = isDone
+      ? '<span class="badge-status badge-returned">🔵 Đã trả</span>'
+      : (daysLeft < 0 ? '<span class="badge-status badge-overdue">🔴 Quá hạn</span>'
+        : (daysLeft <= 3 ? '<span class="badge-status badge-borrowed">🟠 Sắp đến hạn</span>'
+          : '<span class="badge-status badge-available">🟢 Đang mượn</span>'));
+
+    return '<tr>' +
+      '<td class="code" style="color:var(--primary);font-weight:700">' + esc(r.book_code) + '</td>' +
+      '<td><b>' + esc(r.book_name || "—") + '</b></td>' +
+      '<td class="mono">' + viDate(r.borrow_date) + '</td>' +
+      '<td class="mono">' + viDate(r.due_date) + '</td>' +
+      '<td>' + statusHtml + '</td>' +
+    '</tr>';
+  }).join("");
+}
+
+/* Initialize */
+renderAuthState();
+loadAll();
+
 })();
 </script>
 </body>
