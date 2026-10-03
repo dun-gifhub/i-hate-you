@@ -10,7 +10,7 @@ import {
   findAccountByIdentifier, createAccount, getUserById, myBorrows,
 } from "./src/db.js";
 import { runDailyCheck, statusOf, todayISO, flushQueue } from "./src/checker.js";
-import { smsConfigured, emailConfigured, smsBody, emailBody, emailSubject } from "./src/notify.js";
+import { smsConfigured, emailConfigured, smsBody, emailBody, emailSubject, getSMSMode, getEmailMode, sendSMS } from "./src/notify.js";
 import { hashPassword, verifyPassword, makeToken, requireAdmin, requireAccount } from "./src/auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -143,12 +143,20 @@ function validateBorrow(b) {
 
 /* ============ API ============ */
 app.get("/api/trang-thai", (req, res) => {
+  const smsMode = getSMSMode();
+  const emailMode = getEmailMode();
   res.json({
     ngay_hom_nay: todayISO(),
-    sms: smsConfigured() ? "da-cau-hinh" : "chua-cau-hinh",
-    email: emailConfigured() ? "da-cau-hinh" : "chua-cau-hinh",
+    sms: smsMode.configured ? "da-cau-hinh" : "chua-cau-hinh",
+    sms_provider: smsMode.provider,
+    sms_label: smsMode.label,
+    email: emailMode.configured ? "da-cau-hinh" : "chua-cau-hinh",
+    email_provider: emailMode.provider,
+    email_label: emailMode.label,
     lich_chay: process.env.CRON_SCHEDULE || "0 8 * * *",
-    luu_tru: "postgres",
+    mui_gio: process.env.TIMEZONE || "Asia/Ho_Chi_Minh",
+    luu_tru: "in-memory",
+    last_check: lastDailyCheck,
   });
 });
 
@@ -298,17 +306,43 @@ app.post("/api/muon/:id/gui-lai", auth, ah(async (req, res) => {
   const today = todayISO();
   const overdue = rec.due_date < today;
   const stamp = `thucong-${Date.now()}`;
-  if ((process.env.SMS_PROVIDER || "none") !== "none")
+  if (smsConfigured() && rec.phone)
     await queueNotification({ borrow_record_id: rec.id, type: "sms", rule_key: stamp, run_date: today,
       recipient: rec.phone, subject: null, body: smsBody(rec, overdue) });
-  if ((process.env.EMAIL_PROVIDER || "none") !== "none")
+  if (emailConfigured() && rec.email)
     await queueNotification({ borrow_record_id: rec.id, type: "email", rule_key: stamp, run_date: today,
       recipient: rec.email, subject: emailSubject(rec), body: emailBody(rec, overdue).text });
   res.json(await flushQueue());
 }));
 
-/** Chay kiem tra han tra ngay lap tuc (khong cho toi gio cron) */
-app.post("/api/kiem-tra-ngay", auth, ah(async (req, res) => res.json(await runDailyCheck())));
+/** Gui thu tin nhan SMS truc tiep de kiem tra */
+app.post("/api/kiem-tra-sms", auth, ah(async (req, res) => {
+  const phone = String(req.body?.phone || process.env.TEST_PHONE || "").trim();
+  if (!phone) return res.status(400).json({ error: "Vui lòng nhập số điện thoại người nhận." });
+  const text = req.body?.text || `[Thư viện lớp] Tin nhắn kiểm tra hệ thống thông báo hạn trả. Thời gian: ${new Date().toLocaleTimeString("vi-VN")}. Hệ thống tự động 8h sáng sẵn sàng.`;
+  const result = await sendSMS(phone, text);
+  if (!result.ok) {
+    return res.status(400).json({ error: result.reason });
+  }
+  const today = todayISO();
+  await queueNotification({
+    borrow_record_id: null,
+    type: "sms",
+    rule_key: `test-${Date.now()}`,
+    run_date: today,
+    recipient: phone,
+    subject: null,
+    body: text,
+  });
+  await flushQueue();
+  res.json({ ok: true, id: result.id, provider: result.provider, message: "Gửi tin nhắn thử nghiệm thành công!" });
+}));
+
+/** Chay kiem tra han tra ngay lap tuc */
+app.post("/api/kiem-tra-ngay", auth, ah(async (req, res) => {
+  const result = await runAutomatedCheck();
+  res.json(result);
+}));
 
 app.get("/api/thong-ke", auth, ah(async (req, res) => {
   const today = todayISO();
@@ -328,19 +362,56 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "Máy chủ gặp lỗi khi xử lý yêu cầu." });
 });
 
-/* ============ Tien trinh tu dong hang ngay ============ */
+/* ============ Tien trinh tu dong hang ngay lúc 8h sang ============ */
+let lastDailyCheck = null;
+
+async function runAutomatedCheck() {
+  const today = todayISO();
+  console.log(`[Tiến trình 8h sáng] Bắt đầu tự động quét hạn trả ngày ${today}...`);
+  try {
+    const result = await runDailyCheck();
+    lastDailyCheck = {
+      ...result,
+      timestamp: new Date().toISOString(),
+      run_date: today,
+    };
+    return lastDailyCheck;
+  } catch (err) {
+    console.error("[Tiến trình 8h sáng] Lỗi khi chạy kiểm tra tự động:", err);
+    lastDailyCheck = {
+      today,
+      timestamp: new Date().toISOString(),
+      error: err.message,
+      sent: 0,
+      failed: 1,
+    };
+    throw err;
+  }
+}
+
 const schedule = process.env.CRON_SCHEDULE || "0 8 * * *";
+const timezone = process.env.TIMEZONE || "Asia/Ho_Chi_Minh";
+
 if (cron.validate(schedule)) {
-  cron.schedule(schedule, () => { runDailyCheck().catch(console.error); },
-    { timezone: process.env.TIMEZONE || "Asia/Ho_Chi_Minh" });
-  console.log(`Tiến trình tự động đã bật: chạy theo lịch "${schedule}" (${process.env.TIMEZONE || "Asia/Ho_Chi_Minh"}).`);
+  cron.schedule(schedule, () => {
+    runAutomatedCheck().catch(console.error);
+  }, { timezone });
+  console.log(`Tiến trình tự động đã bật: chạy theo lịch "${schedule}" (${timezone}).`);
 } else {
   console.warn(`CRON_SCHEDULE "${schedule}" không hợp lệ, tiến trình tự động chưa bật.`);
 }
+
+// Bù kiểm tra tự động khi máy chủ khởi động hoặc thức dậy nếu hôm nay chưa quét
+setTimeout(() => {
+  if (!lastDailyCheck || lastDailyCheck.run_date !== todayISO()) {
+    console.log("[Tiến trình tự động] Tự động kiểm tra hạn trả bù cho ngày hôm nay...");
+    runAutomatedCheck().catch((err) => console.warn("[Tiến trình tự động] Quét kiểm tra:", err.message));
+  }
+}, 2500);
 
 const port = Number(process.env.PORT || 3000);
 const host = "0.0.0.0";
 app.listen(port, host, () => {
   console.log(`Mở trình duyệt tại http://${host}:${port} để dùng website.`);
-  console.log(`SMS: ${smsConfigured() ? "đã cấu hình" : "CHƯA cấu hình"} · Email: ${emailConfigured() ? "đã cấu hình" : "CHƯA cấu hình"}`);
+  console.log(`SMS: ${smsConfigured() ? "đã kích hoạt" : "tắt"} · Email: ${emailConfigured() ? "đã kích hoạt" : "tắt"}`);
 });

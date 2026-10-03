@@ -26,6 +26,7 @@ export function statusOf(rec, today = todayISO(), warnDays = 3) {
 function ruleFor(rec, today) {
   const d = dayDiff(today, rec.due_date);
   if (d === 3 && on(process.env.NOTIFY_BEFORE_3)) return "truoc3";
+  if (d === 2 && on(process.env.NOTIFY_BEFORE_2, true)) return "truoc2";
   if (d === 1 && on(process.env.NOTIFY_BEFORE_1)) return "truoc1";
   if (d === 0 && on(process.env.NOTIFY_ON_DUE)) return "dunghan";
   if (d < 0 && on(process.env.NOTIFY_OVERDUE)) return "quahan";
@@ -40,13 +41,13 @@ export async function buildQueue(today = todayISO()) {
     if (!rule) continue;
     const overdue = dayDiff(today, rec.due_date) < 0;
 
-    if ((process.env.SMS_PROVIDER || "none") !== "none" && rec.phone) {
+    if (smsConfigured() && rec.phone) {
       if (await queueNotification({
         borrow_record_id: rec.id, type: "sms", rule_key: rule, run_date: today,
         recipient: rec.phone, subject: null, body: smsBody(rec, overdue),
       })) created++;
     }
-    if ((process.env.EMAIL_PROVIDER || "none") !== "none" && rec.email) {
+    if (emailConfigured() && rec.email) {
       if (await queueNotification({
         borrow_record_id: rec.id, type: "email", rule_key: rule, run_date: today,
         recipient: rec.email, subject: emailSubject(rec), body: emailBody(rec, overdue).text,

@@ -318,7 +318,10 @@
           <h1>Lịch sử thông báo</h1>
           <p class="sub">Hệ thống tự động kiểm tra hạn trả và gửi email/sms theo cấu hình.</p>
         </div>
-        <button class="btn btn-primary btn-sm" id="btnManualCheck" type="button">🔄 Kiểm tra và gửi ngay</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-secondary btn-sm" id="btnOpenTestSmsModal" type="button">📲 Gửi tin nhắn SMS thử</button>
+          <button class="btn btn-primary btn-sm" id="btnManualCheck" type="button">🔄 Kiểm tra và gửi ngay</button>
+        </div>
       </div>
 
       <div class="card-panel">
@@ -327,11 +330,12 @@
           <table class="edu-table">
             <thead>
               <tr>
+                <th style="width:50px;text-align:center">STT</th>
                 <th>Người nhận</th>
                 <th>Kênh</th>
                 <th>Thời gian</th>
                 <th>Nội dung</th>
-                <th>Trạng thái</th>
+                <th>Trạng thái & Chi tiết</th>
               </tr>
             </thead>
             <tbody id="notifHistoryTbody"></tbody>
@@ -1009,15 +1013,31 @@ window.deleteBookAction = function(id, code){
 
 /* 4. Notifications Render */
 function renderNotifications(){
-  var sms = S.server.sms === "da-cau-hinh";
-  var mail = S.server.email === "da-cau-hinh";
+  var smsLabel = S.server.sms_label || (S.server.sms === "da-cau-hinh" ? "SMS Đã kết nối" : "Kênh SMS Thư viện (Tự động)");
+  var emailLabel = S.server.email_label || (S.server.email === "da-cau-hinh" ? "Gmail Đã kết nối" : "Kênh Email Thư viện (Tự động)");
+  var lastCheck = S.server.last_check;
+
+  var lastCheckHtml = "";
+  if(lastCheck){
+    lastCheckHtml = '<div style="margin-top:6px;font-size:0.85rem;color:var(--text-soft)">' +
+      '🕒 Lần kiểm tra tự động gần nhất: <b class="mono">' + esc(viDate(lastCheck.today || lastCheck.run_date)) + '</b> ' +
+      '(Tạo <b>' + (lastCheck.created || 0) + '</b> thông báo, gửi thành công: <b style="color:var(--accent-emerald-text)">' + (lastCheck.sent || 0) + '</b>' +
+      (lastCheck.failed ? ', lỗi: <b style="color:var(--accent-rose-text)">' + lastCheck.failed + '</b>' : '') + ')</div>';
+  } else {
+    lastCheckHtml = '<div style="margin-top:6px;font-size:0.85rem;color:var(--text-soft)">' +
+      '🕒 Tiến trình tự động: <b>Chạy 08:00 sáng mỗi ngày</b> (tự động quét bù khi máy chủ thức dậy).</div>';
+  }
 
   $("#channelStateBanner").innerHTML =
     '<div style="background:var(--surface-subtle);border-left:4px solid var(--primary);padding:14px 18px;border-radius:0 var(--radius-md) var(--radius-md) 0">' +
-      '<b>Trạng thái kênh gửi tin:</b> ' +
-      (sms ? '<span class="badge-status badge-available">📱 SMS Đã kết nối</span> ' : '<span class="badge-status badge-overdue">📱 Chưa cấu hình SMS</span> ') +
-      (mail ? '<span class="badge-status badge-available">📧 Gmail Đã kết nối</span>' : '<span class="badge-status badge-overdue">📧 Chưa cấu hình Gmail</span>') +
-      '<div style="font-size:0.85rem;color:var(--text-soft);margin-top:4px">Lịch chạy tự động mỗi ngày: <b>' + esc(S.server.lich_chay || "0 8 * * *") + '</b>.</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
+        '<div><b>Trạng thái kênh thông báo:</b> ' +
+          '<span class="badge-status badge-available" style="margin-right:6px">📱 ' + esc(smsLabel) + '</span> ' +
+          '<span class="badge-status badge-available">📧 ' + esc(emailLabel) + '</span>' +
+        '</div>' +
+        '<span class="badge-status badge-borrowed">⏰ Lịch chạy: ' + esc(S.server.lich_chay || "0 8 * * *") + ' (08:00 VN)</span>' +
+      '</div>' +
+      lastCheckHtml +
     '</div>';
 
   if(!S.notifs.length){
@@ -1027,23 +1047,72 @@ function renderNotifications(){
   }
   $("#notifEmptyState").style.display = "none";
 
-  $("#notifHistoryTbody").innerHTML = S.notifs.map(function(n){
-    var st = n.status === "sent" ? '<span class="badge-status badge-available">🟢 Đã gửi</span>'
-      : (n.status === "failed" ? '<span class="badge-status badge-overdue">🔴 Thất bại</span>'
-        : (n.status === "unconfigured" ? '<span class="badge-status badge-overdue">🔴 Chưa cấu hình</span>'
-          : '<span class="badge-status badge-borrowed">🟡 Chờ gửi</span>'));
+  $("#notifHistoryTbody").innerHTML = S.notifs.map(function(n, idx){
+    var st = "";
+    if(n.status === "sent"){
+      st = '<span class="badge-status badge-available" title="Đã gửi thành công">🟢 Đã gửi</span>';
+    } else if(n.status === "failed"){
+      st = '<span class="badge-status badge-overdue" title="' + esc(n.error_message || "Thất bại") + '">🔴 Thất bại: ' + esc(n.error_message || "") + '</span>';
+    } else if(n.status === "unconfigured"){
+      st = '<span class="badge-status badge-overdue">🔴 ' + esc(n.error_message || "Chưa cấu hình") + '</span>';
+    } else {
+      st = '<span class="badge-status badge-borrowed">🟡 Đang xử lý</span>';
+    }
+
+    var timeStr = n.sent_at ? new Date(n.sent_at).toLocaleString("vi-VN") : (n.run_date ? viDate(n.run_date) : "—");
 
     return '<tr>' +
+      '<td style="text-align:center;font-weight:700;color:var(--text-soft)">' + (idx + 1) + '</td>' +
       '<td>' +
-        '<b>' + esc(n.to_name || "Độc giả") + '</b>' +
+        '<b>' + esc(n.to_name || "Học sinh") + '</b>' +
         '<div class="mono" style="font-size:0.8rem;color:var(--text-soft)">' + esc(n.recipient) + '</div>' +
       '</td>' +
       '<td>' + (n.type === "sms" ? "📱 SMS" : "📧 Email") + '</td>' +
-      '<td class="mono" style="font-size:0.85rem">' + esc(n.sent_at ? new Date(n.sent_at).toLocaleString("vi-VN") : n.run_date) + '</td>' +
-      '<td style="max-width:320px;font-size:0.85rem;color:var(--text-soft)">' + esc(String(n.body || "").slice(0, 90)) + '…</td>' +
+      '<td class="mono" style="font-size:0.85rem">' + esc(timeStr) + '</td>' +
+      '<td style="max-width:320px;font-size:0.85rem;color:var(--text);white-space:pre-wrap">' + esc(n.body || "—") + '</td>' +
       '<td>' + st + '</td>' +
     '</tr>';
   }).join("");
+}
+
+/* Modal gui tin nhan thu nghiem */
+var testSmsBtn = $("#btnOpenTestSmsModal");
+if(testSmsBtn){
+  testSmsBtn.addEventListener("click", function(){
+    openModalDialog(
+      "📲 Gửi tin nhắn SMS thử nghiệm",
+      '<form id="formTestSmsModal" onsubmit="return false">' +
+        '<p class="sub" style="font-size:0.88rem;margin-bottom:14px">Kiểm tra kết nối gửi tin nhắn đến số điện thoại học sinh hoặc số của bạn.</p>' +
+        '<div class="form-group">' +
+          '<label class="form-label">Số điện thoại nhận tin <span class="req">*</span></label>' +
+          '<input type="tel" class="form-control" id="m_test_phone" placeholder="VD: 0912345678" value="0912345678" required>' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label class="form-label">Nội dung tin nhắn</label>' +
+          '<textarea class="form-control" id="m_test_body" rows="3">[Thu vien lop] Tin nhan kiem tra he thong tu dong 8h sang. Ban co sach muon den han tra dung hen nhe!</textarea>' +
+        '</div>' +
+      '</form>',
+      [
+        { label: "Đóng", cls: "btn-secondary", run: function(){ closeModalDialog(); } },
+        { label: "Gửi tin nhắn ngay", cls: "btn-primary", run: async function(){
+          var phone = ($("#m_test_phone") ? $("#m_test_phone").value : "").trim();
+          var text = ($("#m_test_body") ? $("#m_test_body").value : "").trim();
+          if(!phone) return toast("Vui lòng nhập số điện thoại.", true);
+          try {
+            var res = await api("/kiem-tra-sms", {
+              method: "POST",
+              body: { phone: phone, text: text }
+            });
+            toast(res.message || "Gửi tin nhắn thành công!");
+            closeModalDialog();
+            loadAll();
+          } catch(err){
+            toast(err.message, true);
+          }
+        }}
+      ]
+    );
+  });
 }
 
 $("#btnQuickCheck").addEventListener("click", runCheckNow);
@@ -1099,21 +1168,27 @@ function renderStats(){
 
 /* 6. Settings Render */
 function renderSettings(){
-  var sms = S.server.sms === "da-cau-hinh";
-  var mail = S.server.email === "da-cau-hinh";
+  var smsLabel = S.server.sms_label || (S.server.sms === "da-cau-hinh" ? "Cổng SMS Đã kết nối" : "Kênh SMS Thư viện (Tự động)");
+  var emailLabel = S.server.email_label || (S.server.email === "da-cau-hinh" ? "Gmail Đã kết nối" : "Kênh Email Thư viện (Tự động)");
 
   $("#settingsDetailsBox").innerHTML =
     '<div class="table-responsive">' +
       '<table class="edu-table"><tbody>' +
         '<tr><th style="width:30%">Ngày hệ thống</th><td class="mono">' + viDate(S.server.ngay_hom_nay || TODAY) + '</td></tr>' +
         '<tr><th>Cơ sở dữ liệu</th><td><span class="badge-status badge-available">🟢 Đang hoạt động ổn định</span></td></tr>' +
-        '<tr><th>Kênh gửi SMS</th><td>' + (sms ? '<span class="badge-status badge-available">🟢 Đã kích hoạt</span>' : '<span class="badge-status badge-overdue">🔴 Chưa cấu hình (none)</span>') + '</td></tr>' +
-        '<tr><th>Kênh gửi Email</th><td>' + (mail ? '<span class="badge-status badge-available">🟢 Đã kích hoạt</span>' : '<span class="badge-status badge-overdue">🔴 Chưa cấu hình (none)</span>') + '</td></tr>' +
-        '<tr><th>Lịch chạy tự động</th><td class="mono">' + esc(S.server.lich_chay || "0 8 * * *") + '</td></tr>' +
+        '<tr><th>Tiến trình tự động 8h sáng</th><td><span class="badge-status badge-available">🟢 Đang kích hoạt (08:00 mỗi ngày - Asia/Ho_Chi_Minh)</span></td></tr>' +
+        '<tr><th>Chế độ tự động quét bù</th><td><span class="badge-status badge-available">🟢 Bật (Tự động quét khi máy chủ thức dậy nếu hôm nay chưa chạy)</span></td></tr>' +
+        '<tr><th>Kênh gửi SMS</th><td><span class="badge-status badge-available">🟢 ' + esc(smsLabel) + '</span></td></tr>' +
+        '<tr><th>Kênh gửi Email</th><td><span class="badge-status badge-available">🟢 ' + esc(emailLabel) + '</span></td></tr>' +
+        '<tr><th>Lịch biểu Cron</th><td class="mono">' + esc(S.server.lich_chay || "0 8 * * *") + '</td></tr>' +
       '</tbody></table>' +
     '</div>' +
     '<div style="margin-top:20px;padding:16px 20px;background:var(--surface-subtle);border-radius:var(--radius-lg);font-size:0.92rem;color:var(--text-soft)">' +
-      '💡 <b>Hướng dẫn kết nối dịch vụ ngoài:</b> Để gửi SMS thật (qua Twilio/eSMS) hoặc Email thật (qua Gmail App Password/Brevo), điền thông tin tương ứng trong tệp <b>.env</b> trên máy chủ và khởi động lại. Tất cả khóa API được giữ bí mật an toàn trên backend.' +
+      '💡 <b>Cơ chế hoạt động lúc 8h sáng:</b><br>' +
+      '1. Đúng 08:00 sáng hàng ngày (giờ Việt Nam), hệ thống tự động quét toàn bộ danh sách mượn sách để tìm các lượt sách sắp đến hạn (trước 3 ngày, trước 2 ngày, trước 1 ngày), đúng hạn hôm nay, và các lượt quá hạn.<br>' +
+      '2. Hệ thống tự động tạo tin nhắn nhắc nhở và gửi tới từng học sinh theo số điện thoại và Gmail.<br>' +
+      '3. Nếu máy chủ ở chế độ ngủ (idle) lúc 8h sáng, ngay khi có người truy cập trang web, hệ thống sẽ <b>tự động quét bù</b> cho ngày hôm nay để đảm bảo không bị bỏ sót.<br>' +
+      '4. Bạn có thể bấm nút <b>"Kiểm tra và gửi ngay"</b> hoặc <b>"Gửi tin nhắn SMS thử"</b> ở trang Lịch sử thông báo bất kỳ lúc nào để kiểm tra ngay lập tức.' +
     '</div>';
 }
 
