@@ -195,30 +195,38 @@
     </section>
 
     <!-- 3. BOOKS WAREHOUSE PAGE (Quản lý kho sách: SỬA SÁCH, MÃ SÁCH, XOÁ SÁCH) -->
+    <!-- 3. BOOKS WAREHOUSE PAGE (Quản lý kho sách: SỬA SÁCH, MÃ SÁCH, XOÁ SÁCH, TỰ ĐỘNG NHẢY SỐ THỨ TỰ) -->
     <section class="page-panel" id="page-books">
       <div class="section-header">
         <div>
           <h1>Quản lý kho sách</h1>
-          <p class="sub">Chỉnh sửa thông tin mã sách, tên sách, tác giả, thể loại và quản lý xóa sách an toàn.</p>
+          <p class="sub">Tự động đánh số thứ tự liên tiếp, nhảy mã sách theo dãy số tăng dần, cập nhật thông tin và quản lý kho.</p>
         </div>
-        <button class="btn btn-primary btn-sm" id="btnOpenAddBook" type="button">➕ Thêm sách mới vào kho</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-secondary btn-sm" id="btnOpenBatchAddBook" type="button">⚡ Nhập nhanh nhiều cuốn liên tiếp</button>
+          <button class="btn btn-primary btn-sm" id="btnOpenAddBook" type="button">➕ Thêm sách mới (Tự nhảy mã)</button>
+        </div>
       </div>
 
       <div class="card-panel">
-        <div style="display:flex;gap:12px;margin-bottom:18px">
-          <input type="search" class="form-control" id="searchBooksInput" placeholder="🔍 Tìm kiếm mã sách, tên sách, tác giả, thể loại...">
+        <div style="display:flex;gap:12px;margin-bottom:18px;align-items:center;flex-wrap:wrap">
+          <div style="flex:1;min-width:260px">
+            <input type="search" class="form-control" id="searchBooksInput" placeholder="🔍 Tìm kiếm STT, mã sách, tên sách, tác giả, thể loại...">
+          </div>
+          <div style="font-size:0.88rem;color:var(--text-soft);display:flex;align-items:center;gap:12px" id="booksWarehouseStats"></div>
         </div>
 
         <div class="table-responsive">
           <table class="edu-table">
             <thead>
               <tr>
-                <th>Mã sách</th>
+                <th style="width:60px;text-align:center">STT</th>
+                <th style="min-width:110px">Mã sách</th>
                 <th>Tên sách</th>
                 <th>Tác giả</th>
                 <th>Thể loại</th>
                 <th>Trạng thái</th>
-                <th style="text-align:right">Thao tác</th>
+                <th style="text-align:right;min-width:140px">Thao tác</th>
               </tr>
             </thead>
             <tbody id="booksWarehouseTbody"></tbody>
@@ -626,13 +634,78 @@ function renderBorrowList(){
 $("#searchBorrowsInput").addEventListener("input", renderBorrowList);
 $("#filterBorrowStatus").addEventListener("change", renderBorrowList);
 
-/* 3. Books Warehouse Render (SỬA SÁCH, XOÁ SÁCH, MÃ SÁCH) */
+/* Helper: Tính mã sách kế tiếp tự động nhảy theo số thứ tự (VD: TV001 -> TV002 ... TV007) */
+function getNextBookCode(books, preferredPrefix){
+  books = books || S.books || [];
+  if(!books.length) return (preferredPrefix || "TV") + "001";
+
+  var maxByPrefix = {};
+  var padLengthByPrefix = {};
+  var prefixCounts = {};
+
+  books.forEach(function(b){
+    var code = (b && b.book_code ? String(b.book_code).trim().toUpperCase() : "");
+    if(!code) return;
+    var match = code.match(/^([A-Za-z_-]*)(\d+)$/);
+    if(match){
+      var p = match[1] || "TV";
+      var numStr = match[2];
+      var num = parseInt(numStr, 10);
+      prefixCounts[p] = (prefixCounts[p] || 0) + 1;
+      if(maxByPrefix[p] == null || num > maxByPrefix[p]){
+        maxByPrefix[p] = num;
+        padLengthByPrefix[p] = Math.max(numStr.length, 3);
+      }
+    }
+  });
+
+  var chosenPrefix = "TV";
+  if(preferredPrefix && maxByPrefix[preferredPrefix] != null){
+    chosenPrefix = preferredPrefix;
+  } else {
+    var maxCount = -1;
+    for(var p in prefixCounts){
+      if(prefixCounts[p] > maxCount){
+        maxCount = prefixCounts[p];
+        chosenPrefix = p;
+      }
+    }
+  }
+
+  var nextNum = ((maxByPrefix[chosenPrefix] != null ? maxByPrefix[chosenPrefix] : 0) + 1);
+  var minPad = padLengthByPrefix[chosenPrefix] || 3;
+  var numStr = String(nextNum);
+  while(numStr.length < minPad){
+    numStr = "0" + numStr;
+  }
+  return chosenPrefix + numStr;
+}
+
+/* 3. Books Warehouse Render (SỬA SÁCH, XOÁ SÁCH, MÃ SÁCH, TỰ ĐỘNG NHẢY SỐ THỨ TỰ) */
 function renderBooksWarehouse(){
   var q = ($("#searchBooksInput").value || "").trim().toLowerCase();
-  var filtered = S.books.filter(function(b){
-    if(!q) return true;
-    return [b.book_code, b.book_name, b.author, b.category].join(" ").toLowerCase().includes(q);
+
+  // Sắp xếp tăng dần tự nhiên theo số thứ tự của mã sách (TV001, TV002 ... TV010)
+  var allSorted = S.books.slice().sort(function(a, b){
+    return (a.book_code || "").localeCompare(b.book_code || "", undefined, { numeric: true, sensitivity: "base" });
   });
+
+  var filtered = allSorted.filter(function(b, idx){
+    if(!q) return true;
+    var sttStr = String(idx + 1);
+    return sttStr === q || [b.book_code, b.book_name, b.author, b.category].join(" ").toLowerCase().includes(q);
+  });
+
+  var totalCount = S.books.length;
+  var availableCount = S.books.filter(function(b){ return !isBookBusy(b.book_code); }).length;
+  var nextCode = getNextBookCode(S.books);
+
+  var statsEl = $("#booksWarehouseStats");
+  if(statsEl){
+    statsEl.innerHTML = '<span>Tổng số: <b>' + totalCount + '</b> cuốn</span> · ' +
+      '<span style="color:var(--accent-emerald-text)">Có sẵn: <b>' + availableCount + '</b></span> · ' +
+      '<span>Mã kế tiếp: <b class="code" style="color:var(--primary);font-size:0.95rem">' + esc(nextCode) + '</b></span>';
+  }
 
   if(!filtered.length){
     $("#booksWarehouseTbody").innerHTML = "";
@@ -641,9 +714,11 @@ function renderBooksWarehouse(){
   }
   $("#booksWarehouseEmpty").style.display = "none";
 
-  $("#booksWarehouseTbody").innerHTML = filtered.map(function(b){
+  $("#booksWarehouseTbody").innerHTML = filtered.map(function(b, idx){
     var isBusy = isBookBusy(b.book_code);
+    var stt = idx + 1;
     return '<tr>' +
+      '<td style="text-align:center;font-weight:700;color:var(--text-soft)">' + stt + '</td>' +
       '<td class="code" style="color:var(--primary);font-weight:700;font-size:1rem">' + esc(b.book_code) + '</td>' +
       '<td><b>' + esc(b.book_name || "—") + '</b></td>' +
       '<td>' + esc(b.author || "—") + '</td>' +
@@ -664,18 +739,28 @@ function renderBooksWarehouse(){
 }
 $("#searchBooksInput").addEventListener("input", renderBooksWarehouse);
 
-/* Add Book Modal */
+/* Add Book Modal (Tự động nhảy số thứ tự mã sách liên tiếp) */
 $("#btnOpenAddBook").addEventListener("click", function(){
+  var nextCode = getNextBookCode(S.books);
   openModalDialog(
     "➕ Thêm sách mới vào kho",
-    '<form id="formAddBookModal">' +
+    '<form id="formAddBookModal" onsubmit="return false">' +
       '<div class="form-group">' +
-        '<label class="form-label">Mã sách <span class="req">*</span></label>' +
-        '<input type="text" class="form-control" id="m_add_code" placeholder="VD: TOAN12, TV007" required>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+          '<label class="form-label" style="margin-bottom:0">Mã sách <span class="req">*</span></label>' +
+          '<span style="font-size:0.8rem;color:var(--primary);cursor:pointer;font-weight:600" id="btnAutoNextCode" title="Bấm để nhảy số thứ tự tiếp theo">' +
+            '🔄 Tự nhảy mã: <b id="hintNextCode">' + esc(nextCode) + '</b>' +
+          '</span>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<input type="text" class="form-control" id="m_add_code" value="' + esc(nextCode) + '" placeholder="VD: TV007" required style="font-weight:700;font-family:monospace;letter-spacing:0.5px">' +
+          '<button type="button" class="btn btn-secondary btn-sm" id="btnRefreshNextCode" title="Lấy mã số thứ tự tiếp theo" style="white-space:nowrap">Nhảy tiếp</button>' +
+        '</div>' +
+        '<div style="font-size:0.78rem;color:var(--text-soft);margin-top:4px">Mã sách tự động tăng dần theo số thứ tự (bạn có thể gõ mã khác nếu muốn).</div>' +
       '</div>' +
       '<div class="form-group">' +
-        '<label class="form-label">Tên sách</label>' +
-        '<input type="text" class="form-control" id="m_add_name" placeholder="Tên cuốn sách">' +
+        '<label class="form-label">Tên sách <span class="req">*</span></label>' +
+        '<input type="text" class="form-control" id="m_add_name" placeholder="Tên cuốn sách" required>' +
       '</div>' +
       '<div class="form-group">' +
         '<label class="form-label">Tác giả</label>' +
@@ -685,23 +770,125 @@ $("#btnOpenAddBook").addEventListener("click", function(){
         '<label class="form-label">Thể loại</label>' +
         '<input type="text" class="form-control" id="m_add_cat" placeholder="Văn học, Khoa học, Toán học...">' +
       '</div>' +
+      '<div style="margin-top:12px;padding:10px 12px;background:var(--surface-muted);border-radius:var(--radius-md);border:1px solid var(--line)">' +
+        '<label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;margin:0;font-weight:600">' +
+          '<input type="checkbox" id="m_add_continue" checked style="width:16px;height:16px"> Tiếp tục thêm cuốn tiếp theo (tự động nhảy STT mã sách)' +
+        '</label>' +
+      '</div>' +
     '</form>',
     [
-      { label: "Hủy", cls: "btn-secondary", run: function(){ closeModalDialog(); } },
-      { label: "Thêm sách", cls: "btn-primary", run: async function(){
+      { label: "Đóng", cls: "btn-secondary", run: function(){ closeModalDialog(); } },
+      { label: "Lưu & Thêm sách", cls: "btn-primary", run: async function(){
         var code = $("#m_add_code").value.trim().toUpperCase();
+        var name = $("#m_add_name").value.trim();
         if(!code) return toast("Vui lòng nhập mã sách.", true);
+        if(!name) return toast("Vui lòng nhập tên sách.", true);
+        var author = $("#m_add_author").value.trim();
+        var cat = $("#m_add_cat").value.trim();
+        var continueAdd = $("#m_add_continue") && $("#m_add_continue").checked;
+
         try {
           await api("/sach", {
             method: "POST",
             body: {
               book_code: code,
-              book_name: $("#m_add_name").value.trim(),
-              author: $("#m_add_author").value.trim(),
-              category: $("#m_add_cat").value.trim()
+              book_name: name,
+              author: author,
+              category: cat
             }
           });
           toast("Đã thêm sách mã " + code + " vào kho!");
+          await loadAll();
+
+          if(continueAdd){
+            var newerCode = getNextBookCode(S.books);
+            $("#m_add_code").value = newerCode;
+            if($("#hintNextCode")) $("#hintNextCode").textContent = newerCode;
+            $("#m_add_name").value = "";
+            $("#m_add_name").focus();
+          } else {
+            closeModalDialog();
+          }
+        } catch(err){
+          toast(err.message, true);
+        }
+      }}
+    ]
+  );
+
+  setTimeout(function(){
+    var nameInput = $("#m_add_name");
+    if(nameInput) nameInput.focus();
+    var updateCodeFn = function(){
+      var c = getNextBookCode(S.books);
+      $("#m_add_code").value = c;
+      if($("#hintNextCode")) $("#hintNextCode").textContent = c;
+    };
+    var autoBtn = $("#btnAutoNextCode");
+    if(autoBtn) autoBtn.addEventListener("click", updateCodeFn);
+    var refBtn = $("#btnRefreshNextCode");
+    if(refBtn) refBtn.addEventListener("click", updateCodeFn);
+  }, 50);
+});
+
+/* Batch Add Modal (Nhập nhanh nhiều cuốn liên tiếp tự nhảy theo số thứ tự) */
+$("#btnOpenBatchAddBook").addEventListener("click", function(){
+  var nextCode = getNextBookCode(S.books);
+  var defaultPrefix = "TV";
+  var match = nextCode.match(/^([A-Za-z_-]*)(\d+)$/);
+  if(match && match[1]) defaultPrefix = match[1];
+
+  openModalDialog(
+    "⚡ Nhập nhanh nhiều cuốn theo số thứ tự",
+    '<form id="formBatchBookModal" onsubmit="return false">' +
+      '<p class="sub" style="font-size:0.88rem;margin-bottom:14px">Hệ thống sẽ tự động tạo một dãy mã sách liên tiếp nhảy theo số thứ tự tăng dần.</p>' +
+      '<div class="form-row-two">' +
+        '<div class="form-group">' +
+          '<label class="form-label">Tiền tố mã <span class="req">*</span></label>' +
+          '<input type="text" class="form-control" id="m_batch_prefix" value="' + esc(defaultPrefix) + '" required style="font-weight:700;font-family:monospace">' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label class="form-label">Số lượng sách cần tạo <span class="req">*</span></label>' +
+          '<input type="number" class="form-control" id="m_batch_count" min="1" max="50" value="5" required>' +
+        '</div>' +
+      '</div>' +
+      '<div class="form-group">' +
+        '<label class="form-label">Tên sách (áp dụng chung hoặc để trống)</label>' +
+        '<input type="text" class="form-control" id="m_batch_name" placeholder="VD: Sách giáo khoa Toán 12">' +
+      '</div>' +
+      '<div class="form-row-two">' +
+        '<div class="form-group">' +
+          '<label class="form-label">Tác giả</label>' +
+          '<input type="text" class="form-control" id="m_batch_author" placeholder="Tác giả">' +
+        '</div>' +
+        '<div class="form-group">' +
+          '<label class="form-label">Thể loại</label>' +
+          '<input type="text" class="form-control" id="m_batch_cat" placeholder="Thể loại">' +
+        '</div>' +
+      '</div>' +
+      '<div id="batchPreviewBox" style="margin-top:10px;padding:12px;background:var(--surface-muted);border-radius:var(--radius-md);border:1px solid var(--line);font-size:0.88rem">' +
+        'Dự kiến tạo: <b id="batchPreviewText" class="mono" style="color:var(--primary)">...</b>' +
+      '</div>' +
+    '</form>',
+    [
+      { label: "Hủy", cls: "btn-secondary", run: function(){ closeModalDialog(); } },
+      { label: "Tạo danh sách sách", cls: "btn-primary", run: async function(){
+        var prefix = ($("#m_batch_prefix").value || "TV").trim().toUpperCase();
+        var count = parseInt($("#m_batch_count").value, 10) || 1;
+        if(count < 1 || count > 50) return toast("Số lượng tạo từ 1 đến 50 cuốn.", true);
+
+        try {
+          var res = await api("/sach/hang-loat", {
+            method: "POST",
+            body: {
+              prefix: prefix,
+              count: count,
+              book_name: $("#m_batch_name").value.trim(),
+              author: $("#m_batch_author").value.trim(),
+              category: $("#m_batch_cat").value.trim()
+            }
+          });
+          toast("Đã thêm thành công " + res.count + " cuốn sách vào kho!");
           closeModalDialog();
           loadAll();
         } catch(err){
@@ -710,6 +897,29 @@ $("#btnOpenAddBook").addEventListener("click", function(){
       }}
     ]
   );
+
+  var updatePreview = function(){
+    var p = ($("#m_batch_prefix") ? $("#m_batch_prefix").value : "TV").trim().toUpperCase() || "TV";
+    var c = parseInt($("#m_batch_count") ? $("#m_batch_count").value : "5", 10) || 1;
+    var startCode = getNextBookCode(S.books, p);
+    var match = startCode.match(/^([A-Za-z_-]*)(\d+)$/);
+    if(match){
+      var num = parseInt(match[2], 10);
+      var padLen = match[2].length;
+      var endNum = String(num + c - 1);
+      while(endNum.length < padLen) endNum = "0" + endNum;
+      var endCode = p + endNum;
+      $("#batchPreviewText").textContent = (c === 1 ? startCode : startCode + "  →  " + endCode + " (" + c + " cuốn)");
+    } else {
+      $("#batchPreviewText").textContent = startCode;
+    }
+  };
+
+  setTimeout(function(){
+    updatePreview();
+    if($("#m_batch_prefix")) $("#m_batch_prefix").addEventListener("input", updatePreview);
+    if($("#m_batch_count")) $("#m_batch_count").addEventListener("input", updatePreview);
+  }, 50);
 });
 
 /* Edit Book Modal (ĐƯỢC SỬA MÃ SÁCH, TÊN SÁCH, TÁC GIẢ, THỂ LOẠI) */

@@ -211,6 +211,58 @@ app.get("/api/sach", auth, ah(async (req, res) => {
   res.json(r.rows);
 }));
 
+app.get("/api/sach/ma-tiep-theo", auth, ah(async (req, res) => {
+  const r = await db.execute({ sql: "SELECT * FROM books ORDER BY book_code" });
+  const books = r.rows || [];
+  let maxNum = 0;
+  let prefix = "TV";
+  let padLen = 3;
+  for (const b of books) {
+    const match = String(b.book_code || "").trim().toUpperCase().match(/^([A-Za-z_-]*)(\d+)$/);
+    if (match) {
+      const num = parseInt(match[2], 10);
+      if (num > maxNum) {
+        maxNum = num;
+        prefix = match[1] || "TV";
+        padLen = Math.max(padLen, match[2].length);
+      }
+    }
+  }
+  const nextNum = String(maxNum + 1).padStart(padLen, "0");
+  res.json({ next_code: `${prefix}${nextNum}` });
+}));
+
+app.post("/api/sach/hang-loat", auth, ah(async (req, res) => {
+  const { prefix = "TV", count = 1, book_name = "", author = "", category = "" } = req.body || {};
+  const qty = Math.min(Math.max(1, parseInt(count, 10) || 1), 50);
+  const r = await db.execute({ sql: "SELECT * FROM books ORDER BY book_code" });
+  const books = r.rows || [];
+  let maxNum = 0;
+  let padLen = 3;
+  const pUpper = String(prefix || "TV").trim().toUpperCase();
+  for (const b of books) {
+    const match = String(b.book_code || "").trim().toUpperCase().match(/^([A-Za-z_-]*)(\d+)$/);
+    if (match) {
+      const p = (match[1] || "TV").toUpperCase();
+      if (p === pUpper) {
+        const num = parseInt(match[2], 10);
+        if (num > maxNum) {
+          maxNum = num;
+          padLen = Math.max(padLen, match[2].length);
+        }
+      }
+    }
+  }
+  const created = [];
+  for (let i = 1; i <= qty; i++) {
+    const num = String(maxNum + i).padStart(padLen, "0");
+    const code = `${pUpper}${num}`;
+    const id = await upsertBook({ book_code: code, book_name, author, category });
+    created.push({ id, book_code: code, book_name, author, category });
+  }
+  res.status(201).json({ created, count: created.length });
+}));
+
 app.post("/api/sach", auth, ah(async (req, res) => {
   if (!req.body?.book_code) return res.status(400).json({ error: "Thiếu mã sách." });
   const id = await upsertBook(req.body);

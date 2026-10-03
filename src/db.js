@@ -14,6 +14,9 @@ if (process.env.DATABASE_URL) {
       ssl: { rejectUnauthorized: false },
       connectionTimeoutMillis: 3000,
     });
+    pool.on("error", (err) => {
+      console.warn(`[CSDL] Lỗi kết nối Postgres pool (${err.message}) — tự động dự phòng.`);
+    });
     await pool.query("SELECT 1");
     console.log("[CSDL] Đang dùng Postgres — dữ liệu được lưu lâu dài, đồng bộ.");
     await initPostgresSchema(pool);
@@ -143,9 +146,9 @@ const mem = {
 function executeInMemory(sql, args = []) {
   const norm = sql.trim().replace(/\s+/g, " ");
 
-  if (norm.startsWith("SELECT book_code, book_name, author, category, status FROM books")) {
+  if (norm.startsWith("SELECT book_code FROM books") || norm.startsWith("SELECT book_code, book_name, author, category, status FROM books")) {
     const rows = mem.books.slice()
-      .sort((a, b) => a.book_code.localeCompare(b.book_code))
+      .sort((a, b) => (a.book_code || "").localeCompare(b.book_code || "", undefined, { numeric: true, sensitivity: "base" }))
       .map((b) => ({ book_code: b.book_code, book_name: b.book_name, author: b.author, category: b.category, status: b.status }));
     return { rows };
   }
@@ -157,7 +160,7 @@ function executeInMemory(sql, args = []) {
   }
 
   if (norm.startsWith("SELECT * FROM books ORDER BY book_code")) {
-    const rows = mem.books.slice().sort((a, b) => a.book_code.localeCompare(b.book_code));
+    const rows = mem.books.slice().sort((a, b) => (a.book_code || "").localeCompare(b.book_code || "", undefined, { numeric: true, sensitivity: "base" }));
     return { rows };
   }
 
