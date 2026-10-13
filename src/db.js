@@ -6,27 +6,62 @@ import pg from "pg";
    de ung dung luon hoat dong tron tru tren moi moi truong. */
 
 let pool = null;
+let isConnected = false;
 
-if (process.env.DATABASE_URL) {
-  try {
-    pool = new pg.Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
-      connectionTimeoutMillis: 3000,
-    });
-    pool.on("error", (err) => {
-      console.warn(`[CSDL] Lỗi kết nối Postgres pool (${err.message}) — tự động dự phòng.`);
-    });
-    await pool.query("SELECT 1");
-    console.log("[CSDL] Đang dùng Postgres — dữ liệu được lưu lâu dài, đồng bộ.");
-    await initPostgresSchema(pool);
-  } catch (err) {
-    console.warn(`[CSDL] Không kết nối được Postgres (${err.message}) — chuyển sang bộ nhớ tạm (in-memory).`);
-    pool = null;
-  }
-} else {
-  console.log("[CSDL] Chưa có DATABASE_URL — đang dùng bộ nhớ tạm (in-memory) với dữ liệu mẫu.");
+export function getStorageType() {
+  return isConnected && pool ? "postgres" : "in-memory";
 }
+
+async function connectPostgres(retryCount = 2) {
+  if (!process.env.DATABASE_URL) {
+    console.log("[CSDL] Chưa có biến DATABASE_URL — đang dùng bộ nhớ tạm (in-memory) với dữ liệu mẫu.");
+    return null;
+  }
+
+  let connStr = process.env.DATABASE_URL.trim();
+  // Neon Serverless Postgres yeu cau SSL (sslmode=require)
+  if (!connStr.includes("sslmode=") && !connStr.includes("ssl=")) {
+    connStr += (connStr.includes("?") ? "&" : "?") + "sslmode=require";
+  }
+
+  for (let attempt = 1; attempt <= retryCount + 1; attempt++) {
+    try {
+      console.log(`[CSDL] Đang kết nối tới Postgres (lần thử ${attempt})...`);
+      const testPool = new pg.Pool({
+        connectionString: connStr,
+        ssl: { rejectUnauthorized: false },
+        connectionTimeoutMillis: 15000, // 15s cho phep Neon Serverless danh thuc compute
+        idleTimeoutMillis: 30000,
+        max: 10,
+      });
+
+      testPool.on("error", (err) => {
+        console.warn(`[CSDL] Lỗi kết nối ngầm Postgres pool (${err.message}) — tự động duy trì.`);
+      });
+
+      await testPool.query("SELECT 1");
+      console.log("[CSDL] Đang dùng Postgres (Neon) — dữ liệu được lưu lâu dài, đồng bộ vĩnh viễn.");
+      await initPostgresSchema(testPool);
+
+      pool = testPool;
+      isConnected = true;
+      return pool;
+    } catch (err) {
+      console.warn(`[CSDL] Lần thử ${attempt} thất bại (${err.message}).`);
+      if (attempt <= retryCount) {
+        console.log("[CSDL] Chờ 2.5 giây để Neon compute khởi động lại rồi thử lại...");
+        await new Promise((res) => setTimeout(res, 2500));
+      } else {
+        console.warn(`[CSDL] Không kết nối được Postgres sau ${retryCount + 1} lần thử (${err.message}) — chuyển sang bộ nhớ tạm (in-memory).`);
+        pool = null;
+        isConnected = false;
+        return null;
+      }
+    }
+  }
+}
+
+await connectPostgres();
 
 async function initPostgresSchema(p) {
   await p.query(`

@@ -1170,12 +1170,29 @@ function renderStats(){
 function renderSettings(){
   var smsLabel = S.server.sms_label || (S.server.sms === "da-cau-hinh" ? "Cổng SMS Đã kết nối" : "Kênh SMS Thư viện (Tự động)");
   var emailLabel = S.server.email_label || (S.server.email === "da-cau-hinh" ? "Gmail Đã kết nối" : "Kênh Email Thư viện (Tự động)");
+  var isPg = S.server.luu_tru === "postgres";
+
+  var dbBadge = isPg
+    ? '<span class="badge-status badge-available">🟢 Postgres (Neon Database) — Lưu vĩnh viễn, không bị reset</span>'
+    : '<span class="badge-status badge-overdue">⚠️ Bộ nhớ tạm (In-memory) — Dữ liệu sẽ mất khi Render ngủ</span>';
+
+  var dbGuideBox = isPg
+    ? '<div style="margin-top:14px;padding:12px 16px;background:rgba(16,185,129,0.1);border-left:4px solid #10b981;border-radius:var(--radius-md);font-size:0.88rem;color:var(--text)">' +
+        '✅ <b>Đã kết nối cơ sở dữ liệu Postgres thành công:</b> Mọi dữ liệu sách, độc giả, lượt mượn được lưu trực tiếp trên Neon Cloud. Khi Render khởi động lại hoặc tắt máy chủ, dữ liệu vẫn được bảo toàn nguyên vẹn 100%.' +
+      '</div>'
+    : '<div style="margin-top:14px;padding:12px 16px;background:rgba(239,68,68,0.1);border-left:4px solid #ef4444;border-radius:var(--radius-md);font-size:0.88rem;color:var(--text)">' +
+        '⚠️ <b>Hiện tại web đang chạy trên bộ nhớ tạm (In-memory):</b><br>' +
+        'Để kết nối vĩnh viễn với Neon Database và giữ lại toàn bộ 76+ cuốn sách thực tế:<br>' +
+        '1. Truy cập trang quản trị Neon của bạn -> Bấm nút <b>Connect</b> màu xanh lá -> Sao chép chuỗi kết nối <b>Connection string</b> (dạng <code>postgresql://neondb_owner:...@ep-...neon.tech/neondb?sslmode=require</code>).<br>' +
+        '2. Vào trang quản lý của Render -> Chọn Web Service <b>thu-vien-lop</b> -> Mở tab <b>Environment</b>.<br>' +
+        '3. Thêm biến <b>DATABASE_URL</b> và dán chuỗi kết nối Neon vào -> Bấm <b>Save Changes</b> để Render tự động đồng bộ.' +
+      '</div>';
 
   $("#settingsDetailsBox").innerHTML =
     '<div class="table-responsive">' +
       '<table class="edu-table"><tbody>' +
         '<tr><th style="width:30%">Ngày hệ thống</th><td class="mono">' + viDate(S.server.ngay_hom_nay || TODAY) + '</td></tr>' +
-        '<tr><th>Cơ sở dữ liệu</th><td><span class="badge-status badge-available">🟢 Đang hoạt động ổn định</span></td></tr>' +
+        '<tr><th>Cơ sở dữ liệu</th><td>' + dbBadge + '</td></tr>' +
         '<tr><th>Tiến trình tự động 8h sáng</th><td><span class="badge-status badge-available">🟢 Đang kích hoạt (08:00 mỗi ngày - Asia/Ho_Chi_Minh)</span></td></tr>' +
         '<tr><th>Chế độ tự động quét bù</th><td><span class="badge-status badge-available">🟢 Bật (Tự động quét khi máy chủ thức dậy nếu hôm nay chưa chạy)</span></td></tr>' +
         '<tr><th>Kênh gửi SMS</th><td><span class="badge-status badge-available">🟢 ' + esc(smsLabel) + '</span></td></tr>' +
@@ -1183,7 +1200,8 @@ function renderSettings(){
         '<tr><th>Lịch biểu Cron</th><td class="mono">' + esc(S.server.lich_chay || "0 8 * * *") + '</td></tr>' +
       '</tbody></table>' +
     '</div>' +
-    '<div style="margin-top:20px;padding:16px 20px;background:var(--surface-subtle);border-radius:var(--radius-lg);font-size:0.92rem;color:var(--text-soft)">' +
+    dbGuideBox +
+    '<div style="margin-top:16px;padding:16px 20px;background:var(--surface-subtle);border-radius:var(--radius-lg);font-size:0.92rem;color:var(--text-soft)">' +
       '💡 <b>Cơ chế hoạt động lúc 8h sáng:</b><br>' +
       '1. Đúng 08:00 sáng hàng ngày (giờ Việt Nam), hệ thống tự động quét toàn bộ danh sách mượn sách để tìm các lượt sách sắp đến hạn (trước 3 ngày, trước 2 ngày, trước 1 ngày), đúng hạn hôm nay, và các lượt quá hạn.<br>' +
       '2. Hệ thống tự động tạo tin nhắn nhắc nhở và gửi tới từng học sinh theo số điện thoại và Gmail.<br>' +

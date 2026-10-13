@@ -7,7 +7,7 @@ import cron from "node-cron";
 import {
   db, listBorrows, getBorrow, createBorrow, createBorrowForAccount, markReturned,
   listNotifications, upsertBook, updateBook, deleteBook, queueNotification,
-  findAccountByIdentifier, createAccount, getUserById, myBorrows,
+  findAccountByIdentifier, createAccount, getUserById, myBorrows, getStorageType,
 } from "./src/db.js";
 import { runDailyCheck, statusOf, todayISO, flushQueue } from "./src/checker.js";
 import { smsConfigured, emailConfigured, smsBody, emailBody, emailSubject, getSMSMode, getEmailMode, sendSMS } from "./src/notify.js";
@@ -155,7 +155,7 @@ app.get("/api/trang-thai", (req, res) => {
     email_label: emailMode.label,
     lich_chay: process.env.CRON_SCHEDULE || "0 8 * * *",
     mui_gio: process.env.TIMEZONE || "Asia/Ho_Chi_Minh",
-    luu_tru: "in-memory",
+    luu_tru: getStorageType(),
     last_check: lastDailyCheck,
   });
 });
